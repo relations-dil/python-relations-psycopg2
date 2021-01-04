@@ -2,6 +2,8 @@
 Module for intersting with PyMySQL
 """
 
+# pylint: disable=arguments-differ
+
 import copy
 
 import psycopg2
@@ -199,7 +201,7 @@ class Source(relations.Source):
         cursor.close()
 
         for creating in model._each("create"):
-            for parent_child, relation in creating.CHILDREN.items():
+            for parent_child in creating.CHILDREN:
                 if creating._children.get(parent_child):
                     creating._children[parent_child].create()
             creating._action = "update"
@@ -250,8 +252,7 @@ class Source(relations.Source):
 
                 if verify:
                     raise relations.model.ModelError(model, "none retrieved")
-                else:
-                    return None
+                return None
 
             model._record = model._build("update", _read=cursor.fetchone())
 
@@ -275,7 +276,7 @@ class Source(relations.Source):
         Preps values to dict (if not readonly)
         """
 
-        if not field.readonly and (changed is None or field.changed==changed):
+        if not field.readonly and (changed is None or field.changed == changed):
             clause.append(f'"{field.store}"=%s')
             values.append(field.value)
             field.changed = False
@@ -328,7 +329,7 @@ class Source(relations.Source):
 
                 cursor.execute(query, values)
 
-                for parent_child, relation in updating.CHILDREN.items():
+                for parent_child in updating.CHILDREN:
                     if updating._children.get(parent_child):
                         updating._children[parent_child].create().update()
 
@@ -346,8 +347,6 @@ class Source(relations.Source):
         """
 
         cursor = self.connection.cursor()
-
-        deleted = 0
 
         if model._action == "retrieve":
 
