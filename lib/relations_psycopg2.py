@@ -40,7 +40,7 @@ class Source(relations.Source):
         else:
             self.created = True
             self.connection = psycopg2.connect(
-                cursor_factory=psycopg2.extras.RealDictCursor,
+                dbname=self.database, cursor_factory=psycopg2.extras.RealDictCursor,
                 **{name: arg for name, arg in kwargs.items() if name not in ["name", "database", "schema", "connection"]}
             )
 

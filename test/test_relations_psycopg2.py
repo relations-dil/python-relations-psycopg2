@@ -44,20 +44,28 @@ class TestSource(unittest.TestCase):
 
     def setUp(self):
 
-        self.source = relations_psycopg2.Source("PsycoPg2Source", "test_source", user="postgres", host=os.environ["POSTGRES_HOST"], port=int(os.environ["POSTGRES_PORT"]))
-        self.source.connection.autocommit = True
+        self.connection = psycopg2.connect(
+            user="postgres", host=os.environ["POSTGRES_HOST"], port=int(os.environ["POSTGRES_PORT"]),
+            cursor_factory=psycopg2.extras.RealDictCursor
+        )
 
-        cursor = self.source.connection.cursor()
-        cursor.autocommit = True
+        self.connection.autocommit = True
+
+        cursor = self.connection.cursor()
         cursor.execute('DROP DATABASE IF EXISTS "test_source"')
         cursor.execute('CREATE DATABASE "test_source"')
-        cursor.execute('CREATE SCHEMA IF NOT EXISTS public')
+
+        self.source = relations_psycopg2.Source(
+            "PsycoPg2Source", "test_source", user="postgres", host=os.environ["POSTGRES_HOST"], port=int(os.environ["POSTGRES_PORT"])
+        )
 
     def tearDown(self):
 
-        cursor = self.source.connection.cursor()
-        cursor.execute('DROP SCHEMA public CASCADE')
+        self.source.connection.close()
+
+        cursor = self.connection.cursor()
         cursor.execute('DROP DATABASE "test_source"')
+        self.connection.close()
 
     @unittest.mock.patch("relations.SOURCES", {})
     @unittest.mock.patch("psycopg2.connect", unittest.mock.MagicMock())
@@ -78,7 +86,7 @@ class TestSource(unittest.TestCase):
         self.assertEqual(source.schema, "private")
         self.assertEqual(source.connection, psycopg2.connect.return_value)
         self.assertEqual(relations.SOURCES["test"], source)
-        psycopg2.connect.assert_called_once_with(cursor_factory=psycopg2.extras.RealDictCursor, extra="stuff")
+        psycopg2.connect.assert_called_once_with(cursor_factory=psycopg2.extras.RealDictCursor, dbname="init", extra="stuff")
 
     @unittest.mock.patch("relations.SOURCES", {})
     @unittest.mock.patch("psycopg2.connect", unittest.mock.MagicMock())
