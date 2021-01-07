@@ -75,7 +75,7 @@ class TestSource(unittest.TestCase):
         self.assertFalse(source.created)
         self.assertEqual(source.name, "unit")
         self.assertEqual(source.database, "init")
-        self.assertEqual(source.schema, "public")
+        self.assertIsNone(source.schema)
         self.assertEqual(source.connection, "corkneckshurn")
         self.assertEqual(relations.SOURCES["unit"], source)
 
@@ -101,6 +101,7 @@ class TestSource(unittest.TestCase):
         model = unittest.mock.MagicMock()
         model.SCHEMA = None
 
+        self.source.schema = "public"
         model.TABLE = "people"
         self.assertEqual(self.source.table(model), '"public"."people"')
 
@@ -133,7 +134,7 @@ class TestSource(unittest.TestCase):
         self.assertIsNone(model.DATABASE)
         self.assertIsNone(model.SCHEMA)
         self.assertEqual(model.TABLE, "check")
-        self.assertEqual(model.QUERY.get(), 'SELECT * FROM "public"."check"')
+        self.assertEqual(model.QUERY.get(), 'SELECT * FROM "check"')
         self.assertIsNone(model.DEFINITION)
         self.assertTrue(model._fields._names["id"].primary_key)
         self.assertTrue(model._fields._names["id"].serial)
@@ -242,7 +243,7 @@ class TestSource(unittest.TestCase):
         self.assertEqual(Simple.define(), "whatever")
 
         Simple.DEFINITION = None
-        self.assertEqual(Simple.define(), """CREATE TABLE IF NOT EXISTS "public"."simple" (
+        self.assertEqual(Simple.define(), """CREATE TABLE IF NOT EXISTS "simple" (
   "id" SERIAL PRIMARY KEY,
   "name" VARCHAR(255)
 )""")

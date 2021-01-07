@@ -30,7 +30,7 @@ class Source(relations.Source):
     connection = None # Connection
     created = False   # If we created the connection
 
-    def __init__(self, name, database, schema="public", connection=None, **kwargs):
+    def __init__(self, name, database, schema=None, connection=None, **kwargs):
 
         self.database = database
         self.schema = schema
@@ -58,7 +58,7 @@ class Source(relations.Source):
 
         if model.SCHEMA is not None:
             table.append(f'"{model.SCHEMA}"')
-        else:
+        elif self.schema is not None:
             table.append(f'"{self.schema}"')
 
         table.append(f'"{model.TABLE}"')
