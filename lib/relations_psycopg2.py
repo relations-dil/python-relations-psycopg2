@@ -120,7 +120,7 @@ class Source(relations.Source):
             if field.serial:
                 definition.append("SERIAL")
             else:
-                definition.append("SMALLINT")
+                definition.append("INT")
 
             if field.default is not None:
                 default = f"DEFAULT {field.default}"

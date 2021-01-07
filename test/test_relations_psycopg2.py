@@ -150,39 +150,39 @@ class TestSource(unittest.TestCase):
         self.source.field_define(field, definitions)
         self.assertEqual(definitions, ['id'])
 
-        # SMALLINT
+        # INT
 
         field = relations.model.Field(int, store='_id')
         self.source.field_init(field)
         definitions = []
         self.source.field_define(field, definitions)
-        self.assertEqual(definitions, ['"_id" SMALLINT'])
+        self.assertEqual(definitions, ['"_id" INT'])
 
-        # SMALLINT default
+        # INT default
 
         field = relations.model.Field(int, store='_id', default=0)
         self.source.field_init(field)
         definitions = []
         self.source.field_define(field, definitions)
-        self.assertEqual(definitions, ['"_id" SMALLINT DEFAULT 0'])
+        self.assertEqual(definitions, ['"_id" INT DEFAULT 0'])
 
-        # SMALLINT not_null
+        # INT not_null
 
         field = relations.model.Field(int, store='_id', not_null=True)
         self.source.field_init(field)
         definitions = []
         self.source.field_define(field, definitions)
-        self.assertEqual(definitions, ['"_id" SMALLINT NOT NULL'])
+        self.assertEqual(definitions, ['"_id" INT NOT NULL'])
 
-        # SMALLINT primary
+        # INT primary
 
         field = relations.model.Field(int, store='_id', primary_key=True)
         self.source.field_init(field)
         definitions = []
         self.source.field_define(field, definitions)
-        self.assertEqual(definitions, ['"_id" SMALLINT PRIMARY KEY'])
+        self.assertEqual(definitions, ['"_id" INT PRIMARY KEY'])
 
-        # SMALLINT full
+        # INT full
 
         field = relations.model.Field(int, store='_id', not_null=True, primary_key=True, serial=True)
         self.source.field_init(field)
