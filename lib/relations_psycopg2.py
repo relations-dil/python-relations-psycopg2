@@ -134,7 +134,7 @@ class Source(relations.Source):
             if field.default is not None:
                 default = f"DEFAULT '{field.default}'"
 
-        if field.not_null:
+        if not field.none:
             definition.append("NOT NULL")
 
         if field.primary_key:
