@@ -240,16 +240,22 @@ class TestSource(unittest.TestCase):
             id = int
             name = str
 
+            INDEX = "id"
+
         self.assertEqual(Simple.define(), "whatever")
 
         Simple.DEFINITION = None
-        self.assertEqual(Simple.define(), """CREATE TABLE IF NOT EXISTS "simple" (
+        self.assertEqual(Simple.define(), [
+            """CREATE TABLE IF NOT EXISTS "simple" (
   "id" SERIAL PRIMARY KEY,
   "name" VARCHAR(255)
-)""")
+)""",
+            """CREATE UNIQUE INDEX "name" ON "simple" ("name")""",
+            """CREATE INDEX "id" ON "simple" ("id")"""
+        ])
 
         cursor = self.source.connection.cursor()
-        cursor.execute(Simple.define())
+        [cursor.execute(statement) for statement in Simple.define()]
         cursor.close()
 
     def test_field_create(self):
@@ -281,8 +287,7 @@ class TestSource(unittest.TestCase):
         simple.plain.add("fine")
 
         cursor = self.source.connection.cursor()
-        cursor.execute(Simple.define())
-        cursor.execute(Plain.define())
+        [cursor.execute(statement) for statement in Simple.define() + Plain.define()]
 
         simple.create()
 
@@ -385,9 +390,7 @@ class TestSource(unittest.TestCase):
 
         cursor = self.source.connection.cursor()
 
-        cursor.execute(Unit.define())
-        cursor.execute(Test.define())
-        cursor.execute(Case.define())
+        [cursor.execute(statement) for statement in Unit.define() + Test.define() + Case.define()]
 
         Unit([["people"], ["stuff"]]).create()
 
@@ -454,9 +457,7 @@ class TestSource(unittest.TestCase):
 
         cursor = self.source.connection.cursor()
 
-        cursor.execute(Unit.define())
-        cursor.execute(Test.define())
-        cursor.execute(Case.define())
+        [cursor.execute(statement) for statement in Unit.define() + Test.define() + Case.define()]
 
         Unit([["people"], ["stuff"]]).create()
 
@@ -481,9 +482,7 @@ class TestSource(unittest.TestCase):
 
         cursor = self.source.connection.cursor()
 
-        cursor.execute(Unit.define())
-        cursor.execute(Test.define())
-        cursor.execute(Case.define())
+        [cursor.execute(statement) for statement in Unit.define() + Test.define() + Case.define()]
 
         unit = Unit("people")
         unit.test.add("stuff").add("things")
@@ -497,7 +496,7 @@ class TestSource(unittest.TestCase):
         self.assertEqual(len(Unit.many()), 0)
         self.assertEqual(len(Test.many()), 0)
 
-        cursor.execute(Plain.define())
+        [cursor.execute(statement) for statement in Plain.define()]
 
         plain = Plain().create()
         self.assertRaisesRegex(relations.ModelError, "plain: nothing to delete from", plain.delete)

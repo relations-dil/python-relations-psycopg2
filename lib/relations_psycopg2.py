@@ -157,7 +157,20 @@ class Source(relations.Source):
         self.record_define(model._fields, definitions)
 
         sep = ',\n  '
-        return f"CREATE TABLE IF NOT EXISTS {self.table(model)} (\n  {sep.join(definitions)}\n)"
+
+        statements = [
+            f"CREATE TABLE IF NOT EXISTS {self.table(model)} (\n  {sep.join(definitions)}\n)"
+        ]
+
+        for unique in model._unique:
+            fields = '","'.join(model._unique[unique])
+            statements.append(f'CREATE UNIQUE INDEX "{unique.replace("-", "_")}" ON {self.table(model)} ("{fields}")')
+
+        for index in model._index:
+            fields = '","'.join(model._index[index])
+            statements.append(f'CREATE INDEX "{index.replace("-", "_")}" ON {self.table(model)} ("{fields}")')
+
+        return statements
 
     def field_create(self, field, fields, clause):
         """
