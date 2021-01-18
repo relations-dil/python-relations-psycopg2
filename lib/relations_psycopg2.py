@@ -66,7 +66,8 @@ class Source(relations.Source):
 
         return ".".join(table)
 
-    def encode(self, model, values):
+    @staticmethod
+    def encode(model, values):
         """
         Encodes the fields in json if needed
         """
@@ -113,7 +114,7 @@ class Source(relations.Source):
                 model._fields._names[model._id].serial = True
                 model._fields._names[model._id].readonly = True
 
-    def field_define(self, field, definitions):
+    def field_define(self, field, definitions): # pylint: disable=too-many-branches
         """
         Add what this field is the definition
         """
