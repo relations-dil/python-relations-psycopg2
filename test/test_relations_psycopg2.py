@@ -336,7 +336,7 @@ class TestSource(unittest.TestCase):
         self.assertEqual(Simple.define(), [
             """CREATE TABLE IF NOT EXISTS "simple" (
   "id" SERIAL PRIMARY KEY,
-  "name" VARCHAR(255)
+  "name" VARCHAR(255) NOT NULL
 )""",
             """CREATE UNIQUE INDEX "simple_name" ON "simple" ("name")""",
             """CREATE INDEX "simple_id" ON "simple" ("id")"""
@@ -616,5 +616,5 @@ class TestSource(unittest.TestCase):
 
         [cursor.execute(statement) for statement in Plain.define()]
 
-        plain = Plain().create()
+        plain = Plain(0, "nope").create()
         self.assertRaisesRegex(relations.ModelError, "plain: nothing to delete from", plain.delete)

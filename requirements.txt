@@ -1,4 +1,4 @@
-git+https://github.com/gaf3/python-relations.git@0.2.6#egg=relations
+git+https://github.com/gaf3/python-relations.git@0.2.7#egg=relations
 psycopg2==2.8.6
 ptvsd==4.3.2
 coverage==5.2.1
