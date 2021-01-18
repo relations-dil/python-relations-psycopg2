@@ -17,9 +17,9 @@ pipeline {
                 sh 'make lint'
             }
         }
-        stage('verify') {
+        stage('setup') {
             steps {
-                sh 'make verify'
+                sh 'make setup'
             }
         }
     }

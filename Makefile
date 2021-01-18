@@ -18,7 +18,7 @@ ENVIRONMENT=-e POSTGRES_HOST=$(POSTGRES_HOST) \
 			-e PYTHONUNBUFFERED=1 \
 			-e test="python -m unittest -v" \
 			-e debug="python -m ptvsd --host 0.0.0.0 --port 5678 --wait -m unittest -v"
-.PHONY: build network postgres shell debug test lint verify tag untag
+.PHONY: build network postgres shell debug test lint setup tag untag
 
 build:
 	docker build . -t $(ACCOUNT)/$(IMAGE):$(VERSION)
@@ -43,7 +43,7 @@ test: postgres
 lint:
 	docker run $(TTY) $(VOLUMES) $(ENVIRONMENT) $(ACCOUNT)/$(IMAGE):$(VERSION) sh -c "pylint --rcfile=.pylintrc lib/"
 
-verify:
+setup:
 	docker run $(TTY) $(VOLUMES) $(INSTALL) sh -c "cp -r /opt/service /opt/install && cd /opt/install/ && \
 	apk update && apk add git gcc libc-dev make libpq postgresql-dev build-base && \
 	pip install git+https://github.com/gaf3/python-relations.git@0.2.6#egg=relations && \
