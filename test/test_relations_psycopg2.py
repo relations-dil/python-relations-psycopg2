@@ -150,6 +150,30 @@ class TestSource(unittest.TestCase):
         self.source.field_define(field, definitions)
         self.assertEqual(definitions, ['id'])
 
+        # BOOLEAN
+
+        field = relations.Field(bool, store='_flag')
+        self.source.field_init(field)
+        definitions = []
+        self.source.field_define(field, definitions)
+        self.assertEqual(definitions, ['"_flag" BOOLEAN'])
+
+        # BOOLEAN default
+
+        field = relations.Field(bool, store='_flag', default=False)
+        self.source.field_init(field)
+        definitions = []
+        self.source.field_define(field, definitions)
+        self.assertEqual(definitions, ['"_flag" BOOLEAN NOT NULL DEFAULT False'])
+
+        # BOOLEAN none
+
+        field = relations.Field(bool, store='_flag', none=False)
+        self.source.field_init(field)
+        definitions = []
+        self.source.field_define(field, definitions)
+        self.assertEqual(definitions, ['"_flag" BOOLEAN NOT NULL'])
+
         # INT
 
         field = relations.Field(int, store='_id')
@@ -433,8 +457,27 @@ class TestSource(unittest.TestCase):
         self.assertEqual(values, [1])
         self.assertFalse(field.changed)
 
+        # replace
+
+        field = relations.Field(int, name="id", default=-1, replace=True)
+        self.source.field_init(field)
+        clause = []
+        values = []
+        field.value = 1
+        self.source.field_update(field, clause, values)
+        self.assertEqual(clause, ['"id"=%s'])
+        self.assertEqual(values, [1])
+
+        field.changed = False
+        clause = []
+        values = []
+        self.source.field_update(field, clause, values)
+        self.assertEqual(clause, ['"id"=%s'])
+        self.assertEqual(values, [-1])
+
         # not changed
 
+        field = relations.Field(int, name="id")
         clause = []
         values = []
         self.source.field_update(field, clause, values, changed=True)

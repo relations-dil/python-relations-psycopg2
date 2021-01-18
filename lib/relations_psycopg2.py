@@ -115,7 +115,14 @@ class Source(relations.Source):
 
         default = None
 
-        if field.kind == int:
+        if field.kind == bool:
+
+            definition.append("BOOLEAN")
+
+            if field.default is not None:
+                default = f"DEFAULT {field.default}"
+
+        elif field.kind == int:
 
             if field.serial:
                 definition.append("SERIAL")
@@ -289,10 +296,13 @@ class Source(relations.Source):
         Preps values to dict (if not readonly)
         """
 
-        if not field.readonly and (changed is None or field.changed == changed):
-            clause.append(f'"{field.store}"=%s')
-            values.append(field.value)
-            field.changed = False
+        if not field.readonly:
+            if field.replace and not field.changed:
+                field.value = field.default() if callable(field.default) else field.default
+            if changed is None or field.changed == changed:
+                clause.append(f'"{field.store}"=%s')
+                values.append(field.value)
+                field.changed = False
 
     def model_update(self, model):
         """
