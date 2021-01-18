@@ -19,6 +19,13 @@ class Plain(SourceModel):
     simple_id = int
     name = str
 
+class Meta(SourceModel):
+    id = int
+    name = str
+    flag = bool
+    stuff = list
+    things = dict
+
 relations.OneToMany(Simple, Plain)
 
 class Unit(SourceModel):
@@ -107,6 +114,47 @@ class TestSource(unittest.TestCase):
 
         model.SCHEMA = "things"
         self.assertEqual(self.source.table(model), '"things"."people"')
+
+    def test_encode(self):
+
+        model = unittest.mock.MagicMock()
+        people = unittest.mock.MagicMock()
+        stuff = unittest.mock.MagicMock()
+        things = unittest.mock.MagicMock()
+
+        people.kind = str
+        stuff.kind = list
+        things.kind = dict
+
+        people.store = "people"
+        stuff.store = "stuff"
+        things.store = "things"
+
+        model._fields._order = [people, stuff, things]
+
+        values = {
+            "people": "sure",
+            "stuff": None,
+            "things": None
+        }
+
+        self.assertEqual(self.source.encode(model, values), {
+            "people": "sure",
+            "stuff": None,
+            "things": None
+        })
+
+        values = {
+            "people": "sure",
+            "stuff": [],
+            "things": {}
+        }
+
+        self.assertEqual(self.source.encode(model, values), {
+            "people": "sure",
+            "stuff": '[]',
+            "things": '{}'
+        })
 
     def test_field_init(self):
 
@@ -254,6 +302,22 @@ class TestSource(unittest.TestCase):
         self.source.field_define(field, definitions)
         self.assertEqual(definitions, ['"name" VARCHAR(32) NOT NULL DEFAULT \'ya\''])
 
+        # JSON (list)
+
+        field = relations.Field(list, name='stuff')
+        self.source.field_init(field)
+        definitions = []
+        self.source.field_define(field, definitions)
+        self.assertEqual(definitions, ['"stuff" JSON NOT NULL DEFAULT \'[]\''])
+
+        # JSON (dict)
+
+        field = relations.Field(dict, name='things')
+        self.source.field_init(field)
+        definitions = []
+        self.source.field_define(field, definitions)
+        self.assertEqual(definitions, ['"things" JSON NOT NULL DEFAULT \'{}\''])
+
     def test_model_define(self):
 
         class Simple(relations.Model):
@@ -274,8 +338,8 @@ class TestSource(unittest.TestCase):
   "id" SERIAL PRIMARY KEY,
   "name" VARCHAR(255)
 )""",
-            """CREATE UNIQUE INDEX "name" ON "simple" ("name")""",
-            """CREATE INDEX "id" ON "simple" ("id")"""
+            """CREATE UNIQUE INDEX "simple_name" ON "simple" ("name")""",
+            """CREATE INDEX "simple_id" ON "simple" ("id")"""
         ])
 
         cursor = self.source.connection.cursor()
@@ -311,7 +375,7 @@ class TestSource(unittest.TestCase):
         simple.plain.add("fine")
 
         cursor = self.source.connection.cursor()
-        [cursor.execute(statement) for statement in Simple.define() + Plain.define()]
+        [cursor.execute(statement) for statement in Simple.define() + Plain.define() + Meta.define()]
 
         simple.create()
 
@@ -326,6 +390,11 @@ class TestSource(unittest.TestCase):
 
         cursor.execute("SELECT * FROM plain")
         self.assertEqual(cursor.fetchone(), {"simple_id": 1, "name": "fine"})
+
+        Meta("yep", True, [1], {"a": 1}).create()
+
+        cursor.execute("SELECT * FROM meta")
+        self.assertEqual(cursor.fetchone(), {"id": 1, "name": "yep", "flag": True, "stuff": [1], "things": {"a": 1}})
 
         cursor.close()
 
@@ -500,7 +569,7 @@ class TestSource(unittest.TestCase):
 
         cursor = self.source.connection.cursor()
 
-        [cursor.execute(statement) for statement in Unit.define() + Test.define() + Case.define()]
+        [cursor.execute(statement) for statement in Unit.define() + Test.define() + Case.define() + Meta.define()]
 
         Unit([["people"], ["stuff"]]).create()
 
@@ -517,6 +586,12 @@ class TestSource(unittest.TestCase):
         self.assertEqual(unit.name, "thing")
         self.assertEqual(unit.test[0].unit_id, unit.id)
         self.assertEqual(unit.test[0].name, "moar")
+
+        Meta("yep", True, [1], {"a": 1}).create()
+
+        Meta.one(name="yep").set(flag=False, stuff=[], things={}).update()
+        cursor.execute("SELECT * FROM meta")
+        self.assertEqual(cursor.fetchone(), {"id": 1, "name": "yep", "flag": False, "stuff": [], "things": {}})
 
         plain = Plain.one()
         self.assertRaisesRegex(relations.ModelError, "plain: nothing to update from", plain.update)

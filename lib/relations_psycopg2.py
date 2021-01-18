@@ -5,6 +5,7 @@ Module for intersting with PyMySQL
 # pylint: disable=arguments-differ
 
 import copy
+import json
 
 import psycopg2
 import psycopg2.extras
@@ -64,6 +65,16 @@ class Source(relations.Source):
         table.append(f'"{model.TABLE}"')
 
         return ".".join(table)
+
+    def encode(self, model, values):
+        """
+        Encodes the fields in json if needed
+        """
+        for field in model._fields._order:
+            if values.get(field.store) is not None and field.kind in [list, dict]:
+                values[field.store] = json.dumps(values[field.store])
+
+        return values
 
     def field_init(self, field):
         """
@@ -141,6 +152,13 @@ class Source(relations.Source):
             if field.default is not None:
                 default = f"DEFAULT '{field.default}'"
 
+        elif field.kind in [list, dict]:
+
+            definition.append("JSON")
+
+            if field.default is not None:
+                default = f"DEFAULT '{json.dumps(field.default() if callable(field.default) else field.default)}'"
+
         if not field.none:
             definition.append("NOT NULL")
 
@@ -170,12 +188,14 @@ class Source(relations.Source):
         ]
 
         for unique in model._unique:
+            name = f"{model.TABLE}_{unique.replace('-', '_')}"
             fields = '","'.join(model._unique[unique])
-            statements.append(f'CREATE UNIQUE INDEX "{unique.replace("-", "_")}" ON {self.table(model)} ("{fields}")')
+            statements.append(f'CREATE UNIQUE INDEX "{name}" ON {self.table(model)} ("{fields}")')
 
         for index in model._index:
+            name = f"{model.TABLE}_{index.replace('-', '_')}"
             fields = '","'.join(model._index[index])
-            statements.append(f'CREATE INDEX "{index.replace("-", "_")}" ON {self.table(model)} ("{fields}")')
+            statements.append(f'CREATE INDEX "{name}" ON {self.table(model)} ("{fields}")')
 
         return statements
 
@@ -210,13 +230,15 @@ class Source(relations.Source):
             query = f'INSERT INTO {self.table(model)} ({",".join(fields)}) VALUES({",".join(clause)}) RETURNING {store}'
 
             for creating in model._each("create"):
-                cursor.execute(query, creating._record.write({}))
+                cursor.execute(query, self.encode(creating, creating._record.write({})))
                 creating[model._id] = cursor.fetchone()[store]
         else:
 
             query = f'INSERT INTO {self.table(model)} ({",".join(fields)}) VALUES({",".join(clause)})'
 
-            cursor.executemany(query, [model._record.write({}) for model in model._each("create")])
+            cursor.executemany(query, [
+                self.encode(creating, creating._record.write({})) for creating in model._each("create")
+            ])
 
         cursor.close()
 
@@ -301,7 +323,10 @@ class Source(relations.Source):
                 field.value = field.default() if callable(field.default) else field.default
             if changed is None or field.changed == changed:
                 clause.append(f'"{field.store}"=%s')
-                values.append(field.value)
+                if field.kind in [list, dict] and field.value is not None:
+                    values.append(json.dumps(field.value))
+                else:
+                    values.append(field.value)
                 field.changed = False
 
     def model_update(self, model):
