@@ -131,7 +131,7 @@ class Source(relations.Source):
 
             definition.append("BOOLEAN")
 
-            if field.default is not None:
+            if field.default is not None and not callable(field.default):
                 default = f"DEFAULT {field.default}"
 
         elif field.kind == int:
@@ -141,7 +141,7 @@ class Source(relations.Source):
             else:
                 definition.append("INT")
 
-            if field.default is not None:
+            if field.default is not None and not callable(field.default):
                 default = f"DEFAULT {field.default}"
 
         elif field.kind == str:
@@ -150,7 +150,7 @@ class Source(relations.Source):
 
             definition.append(f"VARCHAR({length})")
 
-            if field.default is not None:
+            if field.default is not None and not callable(field.default):
                 default = f"DEFAULT '{field.default}'"
 
         elif field.kind in [list, dict]:
