@@ -23,6 +23,7 @@ class Meta(SourceModel):
     id = int
     name = str
     flag = bool
+    spend = float
     stuff = list
     things = dict
 
@@ -281,6 +282,38 @@ class TestSource(unittest.TestCase):
         self.source.field_define(field, definitions)
         self.assertEqual(definitions, ['"_id" SERIAL NOT NULL PRIMARY KEY'])
 
+        # FLOAT
+
+        field = relations.Field(float, store='spend')
+        self.source.field_init(field)
+        definitions = []
+        self.source.field_define(field, definitions)
+        self.assertEqual(definitions, ['"spend" FLOAT'])
+
+        # FLOAT default
+
+        field = relations.Field(float, store='spend', default=0.1)
+        self.source.field_init(field)
+        definitions = []
+        self.source.field_define(field, definitions)
+        self.assertEqual(definitions, ['"spend" FLOAT NOT NULL DEFAULT 0.1'])
+
+        # FLOAT function default
+
+        field = relations.Field(float, store='spend', default=deffer)
+        self.source.field_init(field)
+        definitions = []
+        self.source.field_define(field, definitions)
+        self.assertEqual(definitions, ['"spend" FLOAT NOT NULL'])
+
+        # FLOAT none
+
+        field = relations.Field(float, store='spend', none=False)
+        self.source.field_init(field)
+        definitions = []
+        self.source.field_define(field, definitions)
+        self.assertEqual(definitions, ['"spend" FLOAT NOT NULL'])
+
         # VARCHAR
 
         field = relations.Field(str, name='name')
@@ -418,10 +451,10 @@ class TestSource(unittest.TestCase):
         cursor.execute("SELECT * FROM plain")
         self.assertEqual(cursor.fetchone(), {"simple_id": 1, "name": "fine"})
 
-        Meta("yep", True, [1], {"a": 1}).create()
+        Meta("yep", True, 1.1, [1], {"a": 1}).create()
 
         cursor.execute("SELECT * FROM meta")
-        self.assertEqual(cursor.fetchone(), {"id": 1, "name": "yep", "flag": True, "stuff": [1], "things": {"a": 1}})
+        self.assertEqual(cursor.fetchone(), {"id": 1, "name": "yep", "flag": True, "spend": 1.1, "stuff": [1], "things": {"a": 1}})
 
         cursor.close()
 
@@ -614,11 +647,11 @@ class TestSource(unittest.TestCase):
         self.assertEqual(unit.test[0].unit_id, unit.id)
         self.assertEqual(unit.test[0].name, "moar")
 
-        Meta("yep", True, [1], {"a": 1}).create()
+        Meta("yep", True, 1.1, [1], {"a": 1}).create()
 
         Meta.one(name="yep").set(flag=False, stuff=[], things={}).update()
         cursor.execute("SELECT * FROM meta")
-        self.assertEqual(cursor.fetchone(), {"id": 1, "name": "yep", "flag": False, "stuff": [], "things": {}})
+        self.assertEqual(cursor.fetchone(), {"id": 1, "name": "yep", "flag": False, "spend": 1.1, "stuff": [], "things": {}})
 
         plain = Plain.one()
         self.assertRaisesRegex(relations.ModelError, "plain: nothing to update from", plain.update)
