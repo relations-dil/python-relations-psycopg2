@@ -180,7 +180,7 @@ class Source(relations.Source):
 
     def model_define(self, cls):
 
-        model = cls._thyself()
+        model = cls.thy()
 
         if model.DEFINITION is not None:
             return model.DEFINITION
