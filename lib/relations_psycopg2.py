@@ -231,7 +231,7 @@ class Source(relations.Source):
 
         self.record_create(model._fields, fields, clause)
 
-        if model._id is not None and model._fields._names[model._id].serial:
+        if not model._bulk and model._id is not None and model._fields._names[model._id].serial:
 
             store = model._fields._names[model._id].store
 
@@ -250,14 +250,20 @@ class Source(relations.Source):
 
         cursor.close()
 
-        for creating in model._each("create"):
-            for parent_child in creating.CHILDREN:
-                if creating._children.get(parent_child):
-                    creating._children[parent_child].create()
-            creating._action = "update"
-            creating._record._action = "update"
+        if not model._bulk:
 
-        model._action = "update"
+            for creating in model._each("create"):
+                for parent_child in creating.CHILDREN:
+                    if creating._children.get(parent_child):
+                        creating._children[parent_child].create()
+                creating._action = "update"
+                creating._record._action = "update"
+
+            model._action = "update"
+
+        else:
+
+            model._models = []
 
         return model
 
