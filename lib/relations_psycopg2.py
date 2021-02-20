@@ -47,7 +47,7 @@ class Source(relations.Source):
 
     def __del__(self):
 
-        if self.created:
+        if self.created and self.connection:
             self.connection.close()
 
     def table(self, model):

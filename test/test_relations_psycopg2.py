@@ -100,6 +100,11 @@ class TestSource(unittest.TestCase):
     @unittest.mock.patch("psycopg2.connect", unittest.mock.MagicMock())
     def test___del__(self):
 
+        source = relations_psycopg2.Source("test", "init", schema="private", extra="stuff")
+        source.connection = None
+        del relations.SOURCES["test"]
+        psycopg2.connect.return_value.close.assert_not_called()
+
         relations_psycopg2.Source("test", "init", schema="private", extra="stuff")
         del relations.SOURCES["test"]
         psycopg2.connect.return_value.close.assert_called_once_with()
