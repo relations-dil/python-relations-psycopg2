@@ -242,11 +242,11 @@ class Source(relations.Source):
                 creating[model._id] = cursor.fetchone()[store]
         else:
 
-            query = f'INSERT INTO {self.table(model)} ({",".join(fields)}) VALUES({",".join(clause)})'
+            query = f'INSERT INTO {self.table(model)} ({",".join(fields)}) VALUES %s'
 
-            cursor.executemany(query, [
+            psycopg2.extras.execute_values(cursor, query, [
                 self.encode(creating, creating._record.write({})) for creating in model._each("create")
-            ])
+            ], f'({",".join(clause)})')
 
         cursor.close()
 
