@@ -295,6 +295,14 @@ class Source(relations.Source):
         query = copy.deepcopy(model.QUERY)
         values = []
 
+        sort = model._sort or model._order
+
+        if sort:
+            order_bys = []
+            for field in sort:
+                order_bys.append(field[1:] if field[0] == "+" else f"{field[1:]} DESC")
+            query.add(order_bys=order_bys)
+
         self.record_retrieve(model._record, query, values)
 
         cursor.execute(query.get(), values)
