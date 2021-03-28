@@ -587,6 +587,7 @@ class TestSource(unittest.TestCase):
         self.assertEqual(Unit.many().sort("-name").name, ["stuff", "people"])
         self.assertEqual(Unit.many().sort("-name").limit(1, 1).name, ["people"])
         self.assertEqual(Unit.many().sort("-name").limit(0).name, [])
+        self.assertEqual(Unit.many(name="people").limit(1).name, ["people"])
 
     def test_field_update(self):
 

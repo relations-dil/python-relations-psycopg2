@@ -303,6 +303,8 @@ class Source(relations.Source):
                 order_bys.append(field[1:] if field[0] == "+" else f"{field[1:]} DESC")
             query.add(order_bys=order_bys)
 
+        self.record_retrieve(model._record, query, values)
+
         if model._limit is not None:
             if model._offset:
                 query.add(limits="%s OFFSET %s")
@@ -310,8 +312,6 @@ class Source(relations.Source):
             else:
                 query.add(limits="%s")
                 values.append(model._limit)
-
-        self.record_retrieve(model._record, query, values)
 
         cursor.execute(query.get(), values)
 
