@@ -493,6 +493,17 @@ class TestSource(unittest.TestCase):
         self.assertEqual(query.wheres, '"id" NOT IN (%s,%s,%s)')
         self.assertEqual(values, [1, 2, 3])
 
+        # LIKE
+
+        field = relations.Field(int, name='id')
+        self.source.field_init(field)
+        field.filter(1, 'like')
+        query = relations.query.Query()
+        values = []
+        self.source.field_retrieve( field, query, values)
+        self.assertEqual(query.wheres, '"id"::varchar(255) ILIKE %s')
+        self.assertEqual(values, ["%1%"])
+
         # =
 
         field = relations.Field(int, name='id')
@@ -519,7 +530,7 @@ class TestSource(unittest.TestCase):
 
         field = relations.Field(int, name='id')
         self.source.field_init(field)
-        field.filter(1, 'ge')
+        field.filter(1, 'gte')
         query = relations.query.Query()
         values = []
         self.source.field_retrieve( field, query, values)
@@ -541,7 +552,7 @@ class TestSource(unittest.TestCase):
 
         field = relations.Field(int, name='id')
         self.source.field_init(field)
-        field.filter(1, 'le')
+        field.filter(1, 'lte')
         query = relations.query.Query()
         values = []
         self.source.field_retrieve( field, query, values)
@@ -572,6 +583,9 @@ class TestSource(unittest.TestCase):
         self.assertEqual(unit._action, "update")
         self.assertEqual(unit._record._action, "update")
 
+        self.assertTrue(Unit.many(name="people").limit(1).retrieve().overflow)
+        self.assertFalse(Unit.many(name="people").limit(2).retrieve().overflow)
+
         unit.test.add("things")[0].case.add("persons")
         unit.update()
 
@@ -588,6 +602,17 @@ class TestSource(unittest.TestCase):
         self.assertEqual(Unit.many().sort("-name").limit(1, 1).name, ["people"])
         self.assertEqual(Unit.many().sort("-name").limit(0).name, [])
         self.assertEqual(Unit.many(name="people").limit(1).name, ["people"])
+
+        model = Unit.many(like="p")
+        self.assertEqual(model.name, ["people"])
+
+        model = Test.many(like="p").retrieve()
+        self.assertEqual(model.name, ["things"])
+        self.assertFalse(model.overflow)
+
+        model = Test.many(like="p", _chunk=1).retrieve()
+        self.assertEqual(model.name, ["things"])
+        self.assertTrue(model.overflow)
 
     def test_field_update(self):
 
