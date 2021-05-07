@@ -2,6 +2,7 @@ import unittest
 import unittest.mock
 
 import os
+import copy
 import psycopg2.extras
 
 import relations
@@ -559,9 +560,88 @@ class TestSource(unittest.TestCase):
         self.assertEqual(query.wheres, '"id"<=%s')
         self.assertEqual(values, [1])
 
-    def test_model_retrieve(self):
+    def test_model_like(self):
 
-        model = Unit()
+        cursor = self.source.connection.cursor()
+
+        [cursor.execute(statement) for statement in Unit.define() + Test.define() + Case.define()]
+
+        Unit([["stuff"], ["people"]]).create()
+
+        unit = Unit.one()
+
+        query = copy.deepcopy(unit.QUERY)
+        values = []
+        self.source.model_like(unit, query, values)
+        self.assertEqual(query.wheres, '')
+        self.assertEqual(values, [])
+
+        unit = Unit.one(like="p")
+        query = copy.deepcopy(unit.QUERY)
+        values = []
+        self.source.model_like(unit, query, values)
+        self.assertEqual(query.wheres, '("name"::varchar(255) ILIKE %s)')
+        self.assertEqual(values, ['%%p%%'])
+
+        unit = Unit.one(name="people")
+        unit.test.add("things")[0]
+        unit.update()
+
+        test = Test.many(like="p")
+        query = copy.deepcopy(test.QUERY)
+        values = []
+        self.source.model_like(test, query, values)
+        self.assertEqual(query.wheres, '("unit_id" IN (%s) OR "name"::varchar(255) ILIKE %s)')
+        self.assertEqual(values, [unit.id, '%%p%%'])
+        self.assertFalse(test.overflow)
+
+        test = Test.many(like="p", _chunk=1)
+        query = copy.deepcopy(test.QUERY)
+        values = []
+        self.source.model_like(test, query, values)
+        self.assertEqual(query.wheres, '("unit_id" IN (%s) OR "name"::varchar(255) ILIKE %s)')
+        self.assertEqual(values, [unit.id, '%%p%%'])
+        self.assertTrue(test.overflow)
+
+    def test_model_sort(self):
+
+        unit = Unit.one()
+
+        query = copy.deepcopy(unit.QUERY)
+        self.source.model_sort(unit, query)
+        self.assertEqual(query.order_bys, '"name"')
+
+        unit._sort = ['-id']
+        query = copy.deepcopy(unit.QUERY)
+        self.source.model_sort(unit, query)
+        self.assertEqual(query.order_bys, '"id" DESC')
+        self.assertIsNone(unit._sort)
+
+    def test_model_limit(self):
+
+        unit = Unit.one()
+
+        query = copy.deepcopy(unit.QUERY)
+        values = []
+        self.source.model_limit(unit, query, values)
+        self.assertEqual(query.limits, '')
+        self.assertEqual(values, [])
+
+        unit._limit = 2
+        query = copy.deepcopy(unit.QUERY)
+        values = []
+        self.source.model_limit(unit, query, values)
+        self.assertEqual(query.limits, '%s')
+        self.assertEqual(values, [2])
+
+        unit._offset = 1
+        query = copy.deepcopy(unit.QUERY)
+        values = []
+        self.source.model_limit(unit, query, values)
+        self.assertEqual(query.limits, '%s OFFSET %s')
+        self.assertEqual(values, [2, 1])
+
+    def test_model_retrieve(self):
 
         cursor = self.source.connection.cursor()
 
