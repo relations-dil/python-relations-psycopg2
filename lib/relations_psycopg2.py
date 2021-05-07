@@ -21,9 +21,9 @@ class Source(relations.Source):
     RETRIEVE = {
         'eq': '=',
         'gt': '>',
-        'ge': '>=',
+        'gte': '>=',
         'lt': '<',
-        'le': '<='
+        'lte': '<='
     }
 
     database = None   # Database to use
@@ -279,9 +279,75 @@ class Source(relations.Source):
             elif operator == "ne":
                 query.add(wheres=f'"{field.store}" NOT IN ({",".join(["%s" for each in value])})')
                 values.extend(value)
+            elif operator == "like":
+                query.add(wheres=f'"{field.store}"::varchar(255) ILIKE %s')
+                values.append(f"%{value}%")
             else:
                 query.add(wheres=f'"{field.store}"{self.RETRIEVE[operator]}%s')
                 values.append(value)
+
+    @staticmethod
+    def model_like(model, query, values):
+        """
+        Adds like information to the query
+        """
+
+        if model._like is None:
+            return
+
+        ors = []
+
+        for name in model._label:
+
+            field = model._fields._names[name]
+
+            parent = False
+
+            for relation in model.PARENTS.values():
+                if field.name == relation.child_field:
+                    parent = relation.Parent.many(like=model._like).limit(model._chunk)
+                    ors.append(f'"{field.store}" IN ({",".join(["%s" for each in parent[relation.parent_field]])})')
+                    values.extend(parent[relation.parent_field])
+                    model.overflow = model.overflow or parent.overflow
+
+            if not parent:
+
+                ors.append(f'"{field.store}"::varchar(255) ILIKE %s')
+                values.append(f"%{model._like}%")
+
+        query.add(wheres="(%s)" % " OR ".join(ors))
+
+    @staticmethod
+    def model_sort(model, query):
+        """
+        Adds sort information to the query
+        """
+
+        sort = model._sort or model._order
+
+        if sort:
+            order_bys = []
+            for field in sort:
+                order_bys.append(f'"{field[1:]}"' if field[0] == "+" else f'"{field[1:]}" DESC')
+            query.add(order_bys=order_bys)
+
+        model._sort = None
+
+    @staticmethod
+    def model_limit(model, query, values):
+        """
+        Adds sort informaiton to the query
+        """
+
+        if model._limit is None:
+            return
+
+        if model._offset:
+            query.add(limits="%s OFFSET %s")
+            values.extend([model._limit, model._offset])
+        else:
+            query.add(limits="%s")
+            values.append(model._limit)
 
     def model_retrieve(self, model, verify=True):
         """
@@ -295,23 +361,11 @@ class Source(relations.Source):
         query = copy.deepcopy(model.QUERY)
         values = []
 
-        sort = model._sort or model._order
-
-        if sort:
-            order_bys = []
-            for field in sort:
-                order_bys.append(field[1:] if field[0] == "+" else f"{field[1:]} DESC")
-            query.add(order_bys=order_bys)
-
         self.record_retrieve(model._record, query, values)
 
-        if model._limit is not None:
-            if model._offset:
-                query.add(limits="%s OFFSET %s")
-                values.extend([model._limit, model._offset])
-            else:
-                query.add(limits="%s")
-                values.append(model._limit)
+        self.model_like(model, query, values)
+        self.model_sort(model, query)
+        self.model_limit(model, query, values)
 
         cursor.execute(query.get(), values)
 
@@ -334,6 +388,9 @@ class Source(relations.Source):
 
             while len(model._models) < cursor.rowcount:
                 model._models.append(model.__class__(_read=cursor.fetchone()))
+
+            if model._limit is not None:
+                model.overflow = model.overflow or len(model._models) >= model._limit
 
             model._record = None
 
