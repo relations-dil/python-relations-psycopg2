@@ -313,7 +313,7 @@ class Source(relations.Source):
             if not parent:
 
                 ors.append(f'"{field.store}"::varchar(255) ILIKE %s')
-                values.append(f"%%{model._like}%%")
+                values.append(f"%{model._like}%")
 
         query.add(wheres="(%s)" % " OR ".join(ors))
 

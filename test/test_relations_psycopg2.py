@@ -581,7 +581,7 @@ class TestSource(unittest.TestCase):
         values = []
         self.source.model_like(unit, query, values)
         self.assertEqual(query.wheres, '("name"::varchar(255) ILIKE %s)')
-        self.assertEqual(values, ['%%p%%'])
+        self.assertEqual(values, ['%p%'])
 
         unit = Unit.one(name="people")
         unit.test.add("things")[0]
@@ -592,7 +592,7 @@ class TestSource(unittest.TestCase):
         values = []
         self.source.model_like(test, query, values)
         self.assertEqual(query.wheres, '("unit_id" IN (%s) OR "name"::varchar(255) ILIKE %s)')
-        self.assertEqual(values, [unit.id, '%%p%%'])
+        self.assertEqual(values, [unit.id, '%p%'])
         self.assertFalse(test.overflow)
 
         test = Test.many(like="p", _chunk=1)
@@ -600,7 +600,7 @@ class TestSource(unittest.TestCase):
         values = []
         self.source.model_like(test, query, values)
         self.assertEqual(query.wheres, '("unit_id" IN (%s) OR "name"::varchar(255) ILIKE %s)')
-        self.assertEqual(values, [unit.id, '%%p%%'])
+        self.assertEqual(values, [unit.id, '%p%'])
         self.assertTrue(test.overflow)
 
     def test_model_sort(self):
