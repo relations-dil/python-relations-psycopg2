@@ -21,7 +21,7 @@ ENVIRONMENT=-e POSTGRES_HOST=$(POSTGRES_HOST) \
 .PHONY: build network postgres shell debug test lint setup tag untag
 
 build:
-	docker build . -t $(ACCOUNT)/$(IMAGE):$(VERSION)
+	docker build --no-cache . -t $(ACCOUNT)/$(IMAGE):$(VERSION)
 
 network:
 	-docker network create $(NETWORK)
