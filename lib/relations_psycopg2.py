@@ -400,6 +400,21 @@ class Source(relations.Source):
 
         return model
 
+    def model_labels(self, model):
+        """
+        Creates the labels structure
+        """
+
+        if model._action == "retrieve":
+            self.model_retrieve(model)
+
+        labels = relations.Labels(model)
+
+        for labeling in model._each():
+            labels.add(labeling)
+
+        return labels
+
     def field_update(self, field, clause, values, changed=None):
         """
         Preps values to dict (if not readonly)
