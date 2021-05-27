@@ -374,7 +374,7 @@ class TestSource(unittest.TestCase):
         self.source.field_init(field)
         definitions = []
         self.source.field_define(field, definitions)
-        self.assertEqual(definitions, ['"stuff" JSON NOT NULL DEFAULT \'[]\''])
+        self.assertEqual(definitions, ['"stuff" JSONB NOT NULL DEFAULT \'[]\''])
 
         # JSON (dict)
 
@@ -382,7 +382,7 @@ class TestSource(unittest.TestCase):
         self.source.field_init(field)
         definitions = []
         self.source.field_define(field, definitions)
-        self.assertEqual(definitions, ['"things" JSON NOT NULL DEFAULT \'{}\''])
+        self.assertEqual(definitions, ['"things" JSONB NOT NULL DEFAULT \'{}\''])
 
     def test_model_define(self):
 
@@ -504,6 +504,59 @@ class TestSource(unittest.TestCase):
         self.source.field_retrieve( field, query, values)
         self.assertEqual(query.wheres, '"id"::varchar(255) ILIKE %s')
         self.assertEqual(values, ["%1%"])
+
+        # NOT LIKE
+
+        field = relations.Field(int, name='id')
+        self.source.field_init(field)
+        field.filter(1, 'notlike')
+        query = relations.query.Query()
+        values = []
+        self.source.field_retrieve( field, query, values)
+        self.assertEqual(query.wheres, '"id"::varchar(255) NOT ILIKE %s')
+        self.assertEqual(values, ["%1%"])
+
+        # IS NULL
+
+        field = relations.Field(int, name='id')
+        self.source.field_init(field)
+        field.filter(True, 'null')
+        query = relations.query.Query()
+        values = []
+        self.source.field_retrieve( field, query, values)
+        self.assertEqual(query.wheres, '"id" IS NULL')
+        self.assertEqual(values, [])
+
+        # IS NOT NULL
+
+        field = relations.Field(int, name='id')
+        self.source.field_init(field)
+        field.filter(False, 'null')
+        query = relations.query.Query()
+        values = []
+        self.source.field_retrieve( field, query, values)
+        self.assertEqual(query.wheres, '"id" IS NOT NULL')
+        self.assertEqual(values, [])
+
+        # JSON
+
+        field = relations.Field(dict, name='meta')
+        self.source.field_init(field)
+        field.filter(1, 'a__b__0___1')
+        query = relations.query.Query()
+        values = []
+        self.source.field_retrieve(field, query, values)
+        self.assertEqual(query.wheres, """("meta"#>>%s)::int=%s""")
+        self.assertEqual(values, ['{a,b,0,"1"}', 1])
+
+        field = relations.Field(dict, name='meta')
+        self.source.field_init(field)
+        field.filter(1.0, 'a__b__0___1')
+        query = relations.query.Query()
+        values = []
+        self.source.field_retrieve(field, query, values)
+        self.assertEqual(query.wheres, """("meta"#>>%s)::float=%s""")
+        self.assertEqual(values, ['{a,b,0,"1"}', 1.0])
 
         # =
 
@@ -645,7 +698,7 @@ class TestSource(unittest.TestCase):
 
         cursor = self.source.connection.cursor()
 
-        [cursor.execute(statement) for statement in Unit.define() + Test.define() + Case.define()]
+        [cursor.execute(statement) for statement in Unit.define() + Test.define() + Case.define() + Meta.define()]
 
         Unit([["stuff"], ["people"]]).create()
 
@@ -693,6 +746,35 @@ class TestSource(unittest.TestCase):
         model = Test.many(like="p", _chunk=1).retrieve()
         self.assertEqual(model.name, ["things"])
         self.assertTrue(model.overflow)
+
+        Meta("dive", stuff=[1, 2, 3], things={"a": {"b": [1], "c": "sure"}, "4": 5}).create()
+
+        model = Meta.many(stuff__1=2)
+        self.assertEqual(model[0].name, "dive")
+
+        model = Meta.many(things__a__b__0=1)
+        self.assertEqual(model[0].name, "dive")
+
+        model = Meta.many(things__a__c__like="su")
+        self.assertEqual(model[0].name, "dive")
+
+        model = Meta.many(things__a__d__null=True)
+        self.assertEqual(model[0].name, "dive")
+
+        model = Meta.many(things___4=5)
+        self.assertEqual(model[0].name, "dive")
+
+        model = Meta.many(things__a__b__0__gt=1)
+        self.assertEqual(len(model), 0)
+
+        model = Meta.many(things__a__c__notlike="su")
+        self.assertEqual(len(model), 0)
+
+        model = Meta.many(things__a__d__null=False)
+        self.assertEqual(len(model), 0)
+
+        model = Meta.many(things___4=6)
+        self.assertEqual(len(model), 0)
 
     def test_model_labels(self):
 

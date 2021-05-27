@@ -162,7 +162,7 @@ class Source(relations.Source):
 
         elif field.kind in [list, dict]:
 
-            definition.append("JSON")
+            definition.append("JSONB")
 
             if field.default is not None:
                 default = f"DEFAULT '{json.dumps(field.default() if callable(field.default) else field.default)}'"
@@ -267,23 +267,57 @@ class Source(relations.Source):
 
         return model
 
-    def field_retrieve(self, field, query, values):
+    def field_retrieve(self, field, query, values): # pylint: disable=too-many-branches
         """
         Adds where caluse to query
         """
 
         for operator, value in (field.criteria or {}).items():
+
+            if operator not in relations.Field.OPERATORS:
+
+                store = []
+                path = operator.split("__")
+                operator = path.pop()
+
+                for place in path:
+
+                    if place[0] == '_':
+                        store.append(f'"{place[1:]}"')
+                    else:
+                        store.append(place)
+
+                values.append(f"{{{','.join(store)}}}")
+
+                cast = value[0] if isinstance(value, list) and value else value
+
+                if isinstance(cast, int):
+                    store = f'("{field.store}"#>>%s)::int'
+                elif isinstance(cast, float):
+                    store = f'("{field.store}"#>>%s)::float'
+                else:
+                    store = f'("{field.store}"#>>%s)'
+
+            else:
+
+                store = f'"{field.store}"'
+
             if operator == "in":
-                query.add(wheres=f'"{field.store}" IN ({",".join(["%s" for each in value])})')
+                query.add(wheres=f'{store} IN ({",".join(["%s" for each in value])})')
                 values.extend(value)
             elif operator == "ne":
-                query.add(wheres=f'"{field.store}" NOT IN ({",".join(["%s" for each in value])})')
+                query.add(wheres=f'{store} NOT IN ({",".join(["%s" for each in value])})')
                 values.extend(value)
             elif operator == "like":
-                query.add(wheres=f'"{field.store}"::varchar(255) ILIKE %s')
+                query.add(wheres=f'{store}::varchar(255) ILIKE %s')
                 values.append(f"%{value}%")
+            elif operator == "notlike":
+                query.add(wheres=f'{store}::varchar(255) NOT ILIKE %s')
+                values.append(f"%{value}%")
+            elif operator == "null":
+                query.add(wheres=f"{store} {'IS' if value else 'IS NOT'} NULL")
             else:
-                query.add(wheres=f'"{field.store}"{self.RETRIEVE[operator]}%s')
+                query.add(wheres=f'{store}{self.RETRIEVE[operator]}%s')
                 values.append(value)
 
     @staticmethod
