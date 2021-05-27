@@ -4,7 +4,6 @@ Module for intersting with PyMySQL
 
 # pylint: disable=arguments-differ
 
-import re
 import copy
 import json
 
@@ -268,7 +267,7 @@ class Source(relations.Source):
 
         return model
 
-    def field_retrieve(self, field, query, values):
+    def field_retrieve(self, field, query, values): # pylint: disable=too-many-branches
         """
         Adds where caluse to query
         """
