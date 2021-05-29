@@ -287,7 +287,7 @@ class Source(relations.Source):
 
         return f"{{{','.join(places)}}}"
 
-    def field_retrieve(self, field, query, values): # pylint: disable=too-many-pathes
+    def field_retrieve(self, field, query, values): # pylint: disable=too-many-branches
         """
         Adds where caluse to query
         """
@@ -296,7 +296,6 @@ class Source(relations.Source):
 
             if operator not in relations.Field.OPERATORS:
 
-                store = []
                 path = operator.split("__")
                 operator = path.pop()
 
