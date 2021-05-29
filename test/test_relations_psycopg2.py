@@ -500,9 +500,9 @@ class TestSource(unittest.TestCase):
 
         cursor.close()
 
-    def test_branch_retrieve(self):
+    def test_path_retrieve(self):
 
-        self.assertEqual(self.source.branch_retrieve("a__b__0___1"), '{a,b,0,"1"}')
+        self.assertEqual(self.source.path_retrieve("a__b__0___1"), '{a,b,0,"1"}')
 
     def test_field_retrieve(self):
 

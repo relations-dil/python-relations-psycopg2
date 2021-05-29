@@ -268,26 +268,26 @@ class Source(relations.Source):
         return model
 
     @staticmethod
-    def branch_retrieve(branch):
+    def path_retrieve(path):
         """
         Generates the JSON pathing for a field
         """
 
-        if isinstance(branch, str):
-            branch = branch.split('__')
+        if isinstance(path, str):
+            path = path.split('__')
 
-        leaves = []
+        places = []
 
-        for leaf in branch:
+        for place in path:
 
-            if leaf[0] == '_':
-                leaves.append(f'"{leaf[1:]}"')
+            if place[0] == '_':
+                places.append(f'"{place[1:]}"')
             else:
-                leaves.append(leaf)
+                places.append(place)
 
-        return f"{{{','.join(leaves)}}}"
+        return f"{{{','.join(places)}}}"
 
-    def field_retrieve(self, field, query, values): # pylint: disable=too-many-branches
+    def field_retrieve(self, field, query, values): # pylint: disable=too-many-pathes
         """
         Adds where caluse to query
         """
@@ -297,10 +297,10 @@ class Source(relations.Source):
             if operator not in relations.Field.OPERATORS:
 
                 store = []
-                branch = operator.split("__")
-                operator = branch.pop()
+                path = operator.split("__")
+                operator = path.pop()
 
-                values.append(self.branch_retrieve(branch))
+                values.append(self.path_retrieve(path))
 
                 cast = value[0] if isinstance(value, list) and value else value
 
@@ -346,8 +346,8 @@ class Source(relations.Source):
 
         for name in model._label:
 
-            branch = name.split("__", 1)
-            name = branch.pop(0)
+            path = name.split("__", 1)
+            name = path.pop(0)
 
             field = model._fields._names[name]
 
@@ -362,14 +362,14 @@ class Source(relations.Source):
 
             if not parent:
 
-                branches = [branch] if branch else field.label
+                paths = [path] if path else field.label
 
-                if branches:
+                if paths:
 
-                    for branch in branches:
+                    for path in paths:
 
                         ors.append(f'("{field.store}"#>>%s)::varchar(255) ILIKE %s')
-                        values.append(Source.branch_retrieve(branch))
+                        values.append(Source.path_retrieve(path))
                         values.append(f"%{model._like}%")
 
                 else:
