@@ -72,7 +72,7 @@ class Source(relations.Source):
         Encodes the fields in json if needed
         """
         for field in model._fields._order:
-            if values.get(field.store) is not None and field.kind in [list, dict]:
+            if values.get(field.store) is not None and field.kind not in [bool, int, float, str]:
                 values[field.store] = json.dumps(values[field.store])
 
         return values
@@ -160,12 +160,12 @@ class Source(relations.Source):
             if field.default is not None and not callable(field.default):
                 default = f"DEFAULT '{field.default}'"
 
-        elif field.kind in [list, dict]:
+        else:
 
             definition.append("JSONB")
 
             if field.default is not None:
-                default = f"DEFAULT '{json.dumps(field.default() if callable(field.default) else field.default)}'"
+                default = f"DEFAULT '{json.dumps(field.default() if callable(field.default) else field.default) or '{}'}'"
 
         if not field.none:
             definition.append("NOT NULL")
@@ -267,6 +267,26 @@ class Source(relations.Source):
 
         return model
 
+    @staticmethod
+    def path_retrieve(path):
+        """
+        Generates the JSON pathing for a field
+        """
+
+        if isinstance(path, str):
+            path = path.split('__')
+
+        places = []
+
+        for place in path:
+
+            if place[0] == '_':
+                places.append(f'"{place[1:]}"')
+            else:
+                places.append(place)
+
+        return f"{{{','.join(places)}}}"
+
     def field_retrieve(self, field, query, values): # pylint: disable=too-many-branches
         """
         Adds where caluse to query
@@ -276,18 +296,10 @@ class Source(relations.Source):
 
             if operator not in relations.Field.OPERATORS:
 
-                store = []
                 path = operator.split("__")
                 operator = path.pop()
 
-                for place in path:
-
-                    if place[0] == '_':
-                        store.append(f'"{place[1:]}"')
-                    else:
-                        store.append(place)
-
-                values.append(f"{{{','.join(store)}}}")
+                values.append(self.path_retrieve(path))
 
                 cast = value[0] if isinstance(value, list) and value else value
 
@@ -303,10 +315,10 @@ class Source(relations.Source):
                 store = f'"{field.store}"'
 
             if operator == "in":
-                query.add(wheres=f'{store} IN ({",".join(["%s" for each in value])})')
+                query.add(wheres=f'{store} IN ({",".join(["%s" for _ in value])})')
                 values.extend(value)
             elif operator == "ne":
-                query.add(wheres=f'{store} NOT IN ({",".join(["%s" for each in value])})')
+                query.add(wheres=f'{store} NOT IN ({",".join(["%s" for _ in value])})')
                 values.extend(value)
             elif operator == "like":
                 query.add(wheres=f'{store}::varchar(255) ILIKE %s')
@@ -333,6 +345,9 @@ class Source(relations.Source):
 
         for name in model._label:
 
+            path = name.split("__", 1)
+            name = path.pop(0)
+
             field = model._fields._names[name]
 
             parent = False
@@ -340,14 +355,26 @@ class Source(relations.Source):
             for relation in model.PARENTS.values():
                 if field.name == relation.child_field:
                     parent = relation.Parent.many(like=model._like).limit(model._chunk)
-                    ors.append(f'"{field.store}" IN ({",".join(["%s" for each in parent[relation.parent_field]])})')
+                    ors.append(f'"{field.store}" IN ({",".join(["%s" for _ in parent[relation.parent_field]])})')
                     values.extend(parent[relation.parent_field])
                     model.overflow = model.overflow or parent.overflow
 
             if not parent:
 
-                ors.append(f'"{field.store}"::varchar(255) ILIKE %s')
-                values.append(f"%{model._like}%")
+                paths = [path] if path else field.label
+
+                if paths:
+
+                    for path in paths:
+
+                        ors.append(f'("{field.store}"#>>%s)::varchar(255) ILIKE %s')
+                        values.append(Source.path_retrieve(path))
+                        values.append(f"%{model._like}%")
+
+                else:
+
+                    ors.append(f'"{field.store}"::varchar(255) ILIKE %s')
+                    values.append(f"%{model._like}%")
 
         query.add(wheres="(%s)" % " OR ".join(ors))
 
