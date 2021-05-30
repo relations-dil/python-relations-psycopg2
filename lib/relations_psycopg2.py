@@ -77,6 +77,26 @@ class Source(relations.Source):
 
         return values
 
+    @staticmethod
+    def walk(path):
+        """
+        Generates the JSON pathing for a field
+        """
+
+        if isinstance(path, str):
+            path = path.split('__')
+
+        places = []
+
+        for place in path:
+
+            if place[0] == '_':
+                places.append(f'"{place[1:]}"')
+            else:
+                places.append(place)
+
+        return f"{{{','.join(places)}}}"
+
     def field_init(self, field):
         """
         Make sure there's primary_key
@@ -114,7 +134,7 @@ class Source(relations.Source):
                 model._fields._names[model._id].serial = True
                 model._fields._names[model._id].readonly = True
 
-    def field_define(self, field, definitions): # pylint: disable=too-many-branches
+    def field_define(self, field, definitions, model): # pylint: disable=too-many-branches
         """
         Add what this field is the definition
         """
@@ -176,6 +196,21 @@ class Source(relations.Source):
         if default:
             definition.append(default)
 
+        if field.extract:
+            path = field.extract.split('__')
+            extracted = model._fields._names[path.pop(0)]
+
+            if field.kind == bool:
+                cast = "::BOOLEAN"
+            elif field.kind == int:
+                cast = "::INT"
+            elif field.kind == float:
+                cast = "::FLOAT"
+            else:
+                cast = "::VARCHAR(255)"
+
+            definition.append(f'GENERATED ALWAYS AS (("{extracted.store}"#>>\'{self.walk(path)}\'){cast}) STORED')
+
         definitions.append(" ".join(definition))
 
     def model_define(self, cls):
@@ -187,7 +222,7 @@ class Source(relations.Source):
 
         definitions = []
 
-        self.record_define(model._fields, definitions)
+        self.record_define(model._fields, definitions, model)
 
         sep = ',\n  '
 
@@ -267,26 +302,6 @@ class Source(relations.Source):
 
         return model
 
-    @staticmethod
-    def path_retrieve(path):
-        """
-        Generates the JSON pathing for a field
-        """
-
-        if isinstance(path, str):
-            path = path.split('__')
-
-        places = []
-
-        for place in path:
-
-            if place[0] == '_':
-                places.append(f'"{place[1:]}"')
-            else:
-                places.append(place)
-
-        return f"{{{','.join(places)}}}"
-
     def field_retrieve(self, field, query, values): # pylint: disable=too-many-branches
         """
         Adds where caluse to query
@@ -299,14 +314,16 @@ class Source(relations.Source):
                 path = operator.split("__")
                 operator = path.pop()
 
-                values.append(self.path_retrieve(path))
+                values.append(self.walk(path))
 
                 cast = value[0] if isinstance(value, list) and value else value
 
-                if isinstance(cast, int):
-                    store = f'("{field.store}"#>>%s)::int'
+                if isinstance(cast, bool):
+                    store = f'("{field.store}"#>>%s)::BOOLEAN'
+                elif isinstance(cast, int):
+                    store = f'("{field.store}"#>>%s)::INT'
                 elif isinstance(cast, float):
-                    store = f'("{field.store}"#>>%s)::float'
+                    store = f'("{field.store}"#>>%s)::FLOAT'
                 else:
                     store = f'("{field.store}"#>>%s)'
 
@@ -321,10 +338,10 @@ class Source(relations.Source):
                 query.add(wheres=f'{store} NOT IN ({",".join(["%s" for _ in value])})')
                 values.extend(value)
             elif operator == "like":
-                query.add(wheres=f'{store}::varchar(255) ILIKE %s')
+                query.add(wheres=f'{store}::VARCHAR(255) ILIKE %s')
                 values.append(f"%{value}%")
             elif operator == "notlike":
-                query.add(wheres=f'{store}::varchar(255) NOT ILIKE %s')
+                query.add(wheres=f'{store}::VARCHAR(255) NOT ILIKE %s')
                 values.append(f"%{value}%")
             elif operator == "null":
                 query.add(wheres=f"{store} {'IS' if value else 'IS NOT'} NULL")
@@ -332,8 +349,8 @@ class Source(relations.Source):
                 query.add(wheres=f'{store}{self.RETRIEVE[operator]}%s')
                 values.append(value)
 
-    @staticmethod
-    def model_like(model, query, values):
+    @classmethod
+    def model_like(cls, model, query, values):
         """
         Adds like information to the query
         """
@@ -367,13 +384,13 @@ class Source(relations.Source):
 
                     for path in paths:
 
-                        ors.append(f'("{field.store}"#>>%s)::varchar(255) ILIKE %s')
-                        values.append(Source.path_retrieve(path))
+                        ors.append(f'("{field.store}"#>>%s)::VARCHAR(255) ILIKE %s')
+                        values.append(cls.walk(path))
                         values.append(f"%{model._like}%")
 
                 else:
 
-                    ors.append(f'"{field.store}"::varchar(255) ILIKE %s')
+                    ors.append(f'"{field.store}"::VARCHAR(255) ILIKE %s')
                     values.append(f"%{model._like}%")
 
         query.add(wheres="(%s)" % " OR ".join(ors))
