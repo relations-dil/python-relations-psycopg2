@@ -139,6 +139,9 @@ class Source(relations.Source):
         Add what this field is the definition
         """
 
+        if field.inject:
+            return
+
         if field.definition is not None:
             definitions.append(field.definition)
             return
@@ -247,7 +250,7 @@ class Source(relations.Source):
         Adds values to clause if not readonly
         """
 
-        if not field.readonly:
+        if not field.readonly and not field.inject:
             fields.append(f'"{field.store}"')
             clause.append(f"%({field.store})s")
             field.changed = False
@@ -498,7 +501,7 @@ class Source(relations.Source):
         Preps values to dict (if not readonly)
         """
 
-        if not field.readonly:
+        if not field.readonly and not field.inject:
             if field.replace and not field.changed:
                 field.value = field.default() if callable(field.default) else field.default
             if changed is None or field.changed == changed:

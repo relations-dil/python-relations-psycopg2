@@ -32,7 +32,7 @@ class Meta(SourceModel):
     stuff = list
     things = dict
     pull = str, {"extract": "things__for__0___1"}
-
+    push = str, {"inject": "stuff__-1__4___1"}
 
 def subnet_attr(values, value):
 
@@ -460,6 +460,14 @@ class TestSource(unittest.TestCase):
         self.source.field_define(field, definitions, Meta.thy())
         self.assertEqual(definitions, ['"grab" VARCHAR(255) GENERATED ALWAYS AS (("things"#>>\'{a,b,0,"1"}\')::VARCHAR(255)) STORED'])
 
+        # INJECTED
+
+        field = relations.Field(str, name='grab', inject="things__a__b__0___1")
+        self.source.field_init(field)
+        definitions = []
+        self.source.field_define(field, definitions, Meta.thy())
+        self.assertEqual(definitions, [])
+
     def test_model_define(self):
 
         class Simple(relations.Model):
@@ -511,6 +519,16 @@ class TestSource(unittest.TestCase):
         self.assertEqual(fields, [])
         self.assertEqual(clause, [])
 
+        # inject
+
+        field = relations.Field(int, name="id", inject=True)
+        self.source.field_init(field)
+        fields = []
+        clause = []
+        self.source.field_create( field, fields, clause)
+        self.assertEqual(fields, [])
+        self.assertEqual(clause, [])
+
     def test_model_create(self):
 
         simple = Simple("sure")
@@ -539,9 +557,17 @@ class TestSource(unittest.TestCase):
         cursor.execute("SELECT * FROM plain")
         self.assertEqual(cursor.fetchone(), {"simple_id": 1, "name": "fine"})
 
-        Meta("yep", True, 3.50, [1], {"for": [{"1": "yep"}]}).create()
+        Meta("yep", True, 3.50, [1, None], {"for": [{"1": "yep"}]}, "sure").create()
         cursor.execute("SELECT * FROM meta")
-        self.assertEqual(cursor.fetchone(), {"id": 1, "name": "yep", "flag": True, "spend": 3.50, "stuff": [1], "things": {"for": [{"1": "yep"}]}, "pull": "yep"})
+        self.assertEqual(cursor.fetchone(), {
+            "id": 1,
+            "name": "yep",
+            "flag": True,
+            "spend": 3.50,
+            "stuff": [1, [None, None, None, None, {"1": "sure"}]],
+            "things": {"for": [{"1": "yep"}]},
+            "pull": "yep"
+        })
 
         cursor.close()
 
@@ -839,7 +865,7 @@ class TestSource(unittest.TestCase):
         self.assertEqual(model.name, ["things"])
         self.assertTrue(model.overflow)
 
-        Meta("dive", stuff=[1, 2, 3], things={"a": {"b": [1], "c": "sure"}, "4": 5, "for": [{"1": "yep"}]}).create()
+        Meta("dive", stuff=[1, 2, 3, None], things={"a": {"b": [1], "c": "sure"}, "4": 5, "for": [{"1": "yep"}]}).create()
 
         model = Meta.many(stuff__1=2)
         self.assertEqual(model[0].name, "dive")
@@ -1016,7 +1042,7 @@ class TestSource(unittest.TestCase):
         self.assertEqual(unit.test[0].unit_id, unit.id)
         self.assertEqual(unit.test[0].name, "moar")
 
-        Meta("yep", True, 1.1, [1], {"a": 1}).create()
+        Meta("yep", True, 1.1, [1, None], {"a": 1}).create()
 
         Meta.one(name="yep").set(flag=False, stuff=[], things={}).update()
         cursor.execute("SELECT * FROM meta")
