@@ -1020,6 +1020,17 @@ class TestSource(unittest.TestCase):
         self.assertEqual(clause, [])
         self.assertEqual(values, [])
 
+        # inject
+
+        field = relations.Field(int, name="id", inject=True)
+        self.source.field_init(field)
+        clause = []
+        values = []
+        field.value = 1
+        self.source.field_update( field, clause, values)
+        self.assertEqual(clause, [])
+        self.assertEqual(values, [])
+
     def test_model_update(self):
 
         cursor = self.source.connection.cursor()
