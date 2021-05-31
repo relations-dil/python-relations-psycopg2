@@ -506,10 +506,14 @@ class Source(relations.Source):
                 field.value = field.default() if callable(field.default) else field.default
             if changed is None or field.changed == changed:
                 clause.append(f'"{field.store}"=%s')
-                if field.kind in [list, dict] and field.value is not None:
-                    values.append(json.dumps(field.value))
+                if field.attr is not None:
+                    value = field.export()
                 else:
-                    values.append(field.value)
+                    value = field.value
+                if field.kind not in [bool, int, float, str] and field.value is not None:
+                    values.append(json.dumps(value))
+                else:
+                    values.append(value)
                 field.changed = False
 
     def model_update(self, model):
