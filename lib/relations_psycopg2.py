@@ -447,7 +447,6 @@ class Source(relations.Source):
         self.record_retrieve(model._record, query, values)
 
         self.model_like(model, query, values)
-        self.model_limit(model, query, values)
 
         cursor.execute(query.get(), values)
 
