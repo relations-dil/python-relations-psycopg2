@@ -430,6 +430,32 @@ class Source(relations.Source):
             query.add(limits="%s")
             values.append(model._limit)
 
+    def model_count(self, model):
+        """
+        Executes the count
+        """
+
+        model._collate()
+
+        cursor = self.connection.cursor()
+
+        query = copy.deepcopy(model.QUERY)
+        query.set(selects="COUNT(*) AS total")
+
+        values = []
+
+        self.record_retrieve(model._record, query, values)
+
+        self.model_like(model, query, values)
+
+        cursor.execute(query.get(), values)
+
+        total = cursor.fetchone()["total"] if cursor.rowcount else 0
+
+        cursor.close()
+
+        return total
+
     def model_retrieve(self, model, verify=True):
         """
         Executes the retrieve
