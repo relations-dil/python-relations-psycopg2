@@ -432,7 +432,7 @@ class Source(relations.Source):
 
     def model_count(self, model):
         """
-        Executes the retrieve
+        Executes the count
         """
 
         model._collate()
@@ -440,7 +440,7 @@ class Source(relations.Source):
         cursor = self.connection.cursor()
 
         query = copy.deepcopy(model.QUERY)
-        query.set(selects=f"COUNT(*) AS total")
+        query.set(selects="COUNT(*) AS total")
 
         values = []
 
