@@ -523,7 +523,7 @@ class Source(relations.Source):
 
     def field_update(self, field, updates, clause, values):
         """
-        Preps values to dict (if not auto)
+        Preps values from dict
         """
 
         if field.store in updates:
