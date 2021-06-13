@@ -132,7 +132,7 @@ class Source(relations.Source):
 
             if model._fields._names[model._id].serial is None:
                 model._fields._names[model._id].serial = True
-                model._fields._names[model._id].readonly = True
+                model._fields._names[model._id].auto = True
 
     def field_define(self, field, definitions, model): # pylint: disable=too-many-branches
         """
@@ -247,13 +247,12 @@ class Source(relations.Source):
 
     def field_create(self, field, fields, clause):
         """
-        Adds values to clause if not readonly
+        Adds values to clause if not auto
         """
 
-        if not field.readonly and not field.inject:
+        if not field.auto and not field.inject:
             fields.append(f'"{field.store}"')
             clause.append(f"%({field.store})s")
-            field.changed = False
 
     def model_create(self, model):
         """
@@ -276,14 +275,14 @@ class Source(relations.Source):
             query = f'INSERT INTO {self.table(model)} ({",".join(fields)}) VALUES({",".join(clause)}) RETURNING {store}'
 
             for creating in model._each("create"):
-                cursor.execute(query, self.encode(creating, creating._record.write({})))
+                cursor.execute(query, self.encode(creating, creating._record.create({})))
                 creating[model._id] = cursor.fetchone()[store]
         else:
 
             query = f'INSERT INTO {self.table(model)} ({",".join(fields)}) VALUES %s'
 
             psycopg2.extras.execute_values(cursor, query, [
-                self.encode(creating, creating._record.write({})) for creating in model._each("create")
+                self.encode(creating, creating._record.create({})) for creating in model._each("create")
             ], f'({",".join(clause)})')
 
         cursor.close()
@@ -522,22 +521,17 @@ class Source(relations.Source):
 
         return labels
 
-    def field_update(self, field, clause, values, changed=None):
+    def field_update(self, field, updates, clause, values):
         """
-        Preps values to dict (if not readonly)
+        Preps values to dict (if not auto)
         """
 
-        if not field.readonly and not field.inject:
-            if field.replace and not field.changed:
-                field.value = field.default() if callable(field.default) else field.default
-            if changed is None or field.changed == changed:
-                clause.append(f'"{field.store}"=%s')
-                value = field.export()
-                if field.kind not in [bool, int, float, str] and field.value is not None:
-                    values.append(json.dumps(value))
-                else:
-                    values.append(value)
-                field.changed = False
+        if field.store in updates:
+            clause.append(f'"{field.store}"=%s')
+            if field.kind not in [bool, int, float, str] and updates[field.store] is not None:
+                values.append(json.dumps(updates[field.store]))
+            else:
+                values.append(updates[field.store])
 
     def model_update(self, model):
         """
@@ -557,7 +551,7 @@ class Source(relations.Source):
             clause = []
             values = []
 
-            self.record_update(model._record, clause, values, changed=True)
+            self.record_update(model._record, model._record.mass({}), clause, values)
 
             # Build the WHERE clause next
 
@@ -579,13 +573,15 @@ class Source(relations.Source):
                 clause = []
                 values = []
 
-                self.record_update(updating._record, clause, values)
+                self.record_update(updating._record, updating._record.update({}), clause, values)
 
-                values.append(updating[model._id])
+                if clause:
 
-                query = f'UPDATE {self.table(model)} SET {relations.sql.assign_clause(clause)} WHERE "{store}"=%s'
+                    values.append(updating[model._id])
 
-                cursor.execute(query, values)
+                    query = f'UPDATE {self.table(model)} SET {relations.sql.assign_clause(clause)} WHERE "{store}"=%s'
+
+                    cursor.execute(query, values)
 
                 for parent_child in updating.CHILDREN:
                     if updating._children.get(parent_child):
