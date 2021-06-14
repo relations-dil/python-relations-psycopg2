@@ -240,7 +240,7 @@ class TestSource(unittest.TestCase):
         field = relations.Field(int, definition='id')
         self.source.field_init(field)
         definitions = []
-        self.source.field_define(field, definitions, None)
+        self.source.field_define(field, definitions)
         self.assertEqual(definitions, ['id'])
 
         # BOOLEAN
@@ -248,7 +248,7 @@ class TestSource(unittest.TestCase):
         field = relations.Field(bool, store='_flag')
         self.source.field_init(field)
         definitions = []
-        self.source.field_define(field, definitions, None)
+        self.source.field_define(field, definitions)
         self.assertEqual(definitions, ['"_flag" BOOLEAN'])
 
         # BOOLEAN default
@@ -256,7 +256,7 @@ class TestSource(unittest.TestCase):
         field = relations.Field(bool, store='_flag', default=False)
         self.source.field_init(field)
         definitions = []
-        self.source.field_define(field, definitions, None)
+        self.source.field_define(field, definitions)
         self.assertEqual(definitions, ['"_flag" BOOLEAN NOT NULL DEFAULT False'])
 
         # BOOLEAN function default
@@ -264,7 +264,7 @@ class TestSource(unittest.TestCase):
         field = relations.Field(bool, store='_flag', default=deffer)
         self.source.field_init(field)
         definitions = []
-        self.source.field_define(field, definitions, None)
+        self.source.field_define(field, definitions)
         self.assertEqual(definitions, ['"_flag" BOOLEAN NOT NULL'])
 
         # BOOLEAN none
@@ -272,7 +272,7 @@ class TestSource(unittest.TestCase):
         field = relations.Field(bool, store='_flag', none=False)
         self.source.field_init(field)
         definitions = []
-        self.source.field_define(field, definitions, None)
+        self.source.field_define(field, definitions)
         self.assertEqual(definitions, ['"_flag" BOOLEAN NOT NULL'])
 
         # INT
@@ -280,7 +280,7 @@ class TestSource(unittest.TestCase):
         field = relations.Field(int, store='_id')
         self.source.field_init(field)
         definitions = []
-        self.source.field_define(field, definitions, None)
+        self.source.field_define(field, definitions)
         self.assertEqual(definitions, ['"_id" INT'])
 
         # INT default
@@ -288,7 +288,7 @@ class TestSource(unittest.TestCase):
         field = relations.Field(int, store='_id', default=0)
         self.source.field_init(field)
         definitions = []
-        self.source.field_define(field, definitions, None)
+        self.source.field_define(field, definitions)
         self.assertEqual(definitions, ['"_id" INT NOT NULL DEFAULT 0'])
 
         # INT function default
@@ -296,7 +296,7 @@ class TestSource(unittest.TestCase):
         field = relations.Field(int, store='_id', default=deffer)
         self.source.field_init(field)
         definitions = []
-        self.source.field_define(field, definitions, None)
+        self.source.field_define(field, definitions)
         self.assertEqual(definitions, ['"_id" INT NOT NULL'])
 
         # INT none
@@ -304,7 +304,7 @@ class TestSource(unittest.TestCase):
         field = relations.Field(int, store='_id', none=False)
         self.source.field_init(field)
         definitions = []
-        self.source.field_define(field, definitions, None)
+        self.source.field_define(field, definitions)
         self.assertEqual(definitions, ['"_id" INT NOT NULL'])
 
         # INT primary
@@ -312,7 +312,7 @@ class TestSource(unittest.TestCase):
         field = relations.Field(int, store='_id', primary_key=True)
         self.source.field_init(field)
         definitions = []
-        self.source.field_define(field, definitions, None)
+        self.source.field_define(field, definitions)
         self.assertEqual(definitions, ['"_id" INT PRIMARY KEY'])
 
         # INT full
@@ -320,7 +320,7 @@ class TestSource(unittest.TestCase):
         field = relations.Field(int, store='_id', none=False, primary_key=True, serial=True)
         self.source.field_init(field)
         definitions = []
-        self.source.field_define(field, definitions, None)
+        self.source.field_define(field, definitions)
         self.assertEqual(definitions, ['"_id" SERIAL NOT NULL PRIMARY KEY'])
 
         # FLOAT
@@ -328,7 +328,7 @@ class TestSource(unittest.TestCase):
         field = relations.Field(float, store='spend')
         self.source.field_init(field)
         definitions = []
-        self.source.field_define(field, definitions, None)
+        self.source.field_define(field, definitions)
         self.assertEqual(definitions, ['"spend" FLOAT'])
 
         # FLOAT default
@@ -336,7 +336,7 @@ class TestSource(unittest.TestCase):
         field = relations.Field(float, store='spend', default=0.1)
         self.source.field_init(field)
         definitions = []
-        self.source.field_define(field, definitions, None)
+        self.source.field_define(field, definitions)
         self.assertEqual(definitions, ['"spend" FLOAT NOT NULL DEFAULT 0.1'])
 
         # FLOAT function default
@@ -344,7 +344,7 @@ class TestSource(unittest.TestCase):
         field = relations.Field(float, store='spend', default=deffer)
         self.source.field_init(field)
         definitions = []
-        self.source.field_define(field, definitions, None)
+        self.source.field_define(field, definitions)
         self.assertEqual(definitions, ['"spend" FLOAT NOT NULL'])
 
         # FLOAT none
@@ -352,7 +352,7 @@ class TestSource(unittest.TestCase):
         field = relations.Field(float, store='spend', none=False)
         self.source.field_init(field)
         definitions = []
-        self.source.field_define(field, definitions, None)
+        self.source.field_define(field, definitions)
         self.assertEqual(definitions, ['"spend" FLOAT NOT NULL'])
 
         # VARCHAR
@@ -360,7 +360,7 @@ class TestSource(unittest.TestCase):
         field = relations.Field(str, name='name')
         self.source.field_init(field)
         definitions = []
-        self.source.field_define(field, definitions, None)
+        self.source.field_define(field, definitions)
         self.assertEqual(definitions, ['"name" VARCHAR(255)'])
 
         # VARCHAR length
@@ -368,7 +368,7 @@ class TestSource(unittest.TestCase):
         field = relations.Field(str, name='name', length=32)
         self.source.field_init(field)
         definitions = []
-        self.source.field_define(field, definitions, None)
+        self.source.field_define(field, definitions)
         self.assertEqual(definitions, ['"name" VARCHAR(32)'])
 
         # VARCHAR default
@@ -376,7 +376,7 @@ class TestSource(unittest.TestCase):
         field = relations.Field(str, name='name', default='ya')
         self.source.field_init(field)
         definitions = []
-        self.source.field_define(field, definitions, None)
+        self.source.field_define(field, definitions)
         self.assertEqual(definitions, ['"name" VARCHAR(255) NOT NULL DEFAULT \'ya\''])
 
         # VARCHAR function default
@@ -384,7 +384,7 @@ class TestSource(unittest.TestCase):
         field = relations.Field(str, name='name', default=deffer)
         self.source.field_init(field)
         definitions = []
-        self.source.field_define(field, definitions, None)
+        self.source.field_define(field, definitions)
         self.assertEqual(definitions, ['"name" VARCHAR(255) NOT NULL'])
 
         # VARCHAR none
@@ -392,7 +392,7 @@ class TestSource(unittest.TestCase):
         field = relations.Field(str, name='name', none=False)
         self.source.field_init(field)
         definitions = []
-        self.source.field_define(field, definitions, None)
+        self.source.field_define(field, definitions)
         self.assertEqual(definitions, ['"name" VARCHAR(255) NOT NULL'])
 
         # VARCHAR full
@@ -400,7 +400,7 @@ class TestSource(unittest.TestCase):
         field = relations.Field(str, name='name', length=32, none=False, default='ya')
         self.source.field_init(field)
         definitions = []
-        self.source.field_define(field, definitions, None)
+        self.source.field_define(field, definitions)
         self.assertEqual(definitions, ['"name" VARCHAR(32) NOT NULL DEFAULT \'ya\''])
 
         # JSON (list)
@@ -408,7 +408,7 @@ class TestSource(unittest.TestCase):
         field = relations.Field(list, name='stuff')
         self.source.field_init(field)
         definitions = []
-        self.source.field_define(field, definitions, None)
+        self.source.field_define(field, definitions)
         self.assertEqual(definitions, ['"stuff" JSONB NOT NULL DEFAULT \'[]\''])
 
         # JSON (dict)
@@ -416,7 +416,7 @@ class TestSource(unittest.TestCase):
         field = relations.Field(dict, name='things')
         self.source.field_init(field)
         definitions = []
-        self.source.field_define(field, definitions, None)
+        self.source.field_define(field, definitions)
         self.assertEqual(definitions, ['"things" JSONB NOT NULL DEFAULT \'{}\''])
 
         # JSON (anything)
@@ -424,7 +424,7 @@ class TestSource(unittest.TestCase):
         field = relations.Field(ipaddress.IPv4Address, name='ip', attr="whatev")
         self.source.field_init(field)
         definitions = []
-        self.source.field_define(field, definitions, None)
+        self.source.field_define(field, definitions)
         self.assertEqual(definitions, ['"ip" JSONB'])
 
         # EXTRACTED
@@ -438,7 +438,7 @@ class TestSource(unittest.TestCase):
         })
         self.source.field_init(field)
         definitions = []
-        self.source.field_define(field, definitions, Meta.thy())
+        self.source.field_define(field, definitions)
         self.assertEqual(definitions, [
             '"grab" JSONB NOT NULL DEFAULT \'{}\'',
             '"grab__a__b__0___1" BOOLEAN GENERATED ALWAYS AS (("grab"#>>\'{a,b,0,"1"}\')::BOOLEAN) STORED',
@@ -453,7 +453,7 @@ class TestSource(unittest.TestCase):
         field = relations.Field(str, name='grab', inject="things__a__b__0___1")
         self.source.field_init(field)
         definitions = []
-        self.source.field_define(field, definitions, Meta.thy())
+        self.source.field_define(field, definitions)
         self.assertEqual(definitions, [])
 
     def test_model_define(self):

@@ -233,7 +233,7 @@ class Source(relations.Source):
 
         definitions = []
 
-        self.record_define(model._fields, definitions, model)
+        self.record_define(model._fields, definitions)
 
         sep = ',\n  '
 
