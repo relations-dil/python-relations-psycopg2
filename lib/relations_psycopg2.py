@@ -134,7 +134,7 @@ class Source(relations.Source):
                 model._fields._names[model._id].serial = True
                 model._fields._names[model._id].auto = True
 
-    def field_define(self, field, definitions, model): # pylint: disable=too-many-branches
+    def field_define(self, field, definitions): # pylint: disable=too-many-branches,too-many-statements
         """
         Add what this field is the definition
         """
@@ -199,22 +199,30 @@ class Source(relations.Source):
         if default:
             definition.append(default)
 
-        if field.extract:
-            path = field.extract.split('__')
-            extracted = model._fields._names[path.pop(0)]
-
-            if field.kind == bool:
-                cast = "::BOOLEAN"
-            elif field.kind == int:
-                cast = "::INT"
-            elif field.kind == float:
-                cast = "::FLOAT"
-            else:
-                cast = "::VARCHAR(255)"
-
-            definition.append(f'GENERATED ALWAYS AS (("{extracted.store}"#>>\'{self.walk(path)}\'){cast}) STORED')
-
         definitions.append(" ".join(definition))
+
+        for store in sorted((field.extract or {}).keys()):
+
+            kind = field.extract[store]
+
+            definition = [f'"{field.store}__{store}"']
+
+            if kind == bool:
+                cast = "BOOLEAN"
+            elif kind == int:
+                cast = "INT"
+            elif kind == float:
+                cast = "FLOAT"
+            elif kind == str:
+                cast = "VARCHAR(255)"
+            else:
+                cast = "JSONB"
+
+            definition.append(cast)
+
+            definition.append(f'GENERATED ALWAYS AS (("{field.store}"#>>\'{self.walk(store)}\')::{cast}) STORED')
+
+            definitions.append(" ".join(definition))
 
     def model_define(self, cls):
 
@@ -225,7 +233,7 @@ class Source(relations.Source):
 
         definitions = []
 
-        self.record_define(model._fields, definitions, model)
+        self.record_define(model._fields, definitions)
 
         sep = ',\n  '
 
@@ -313,21 +321,26 @@ class Source(relations.Source):
 
             if operator not in relations.Field.OPERATORS:
 
-                path = operator.split("__")
-                operator = path.pop()
+                path, operator = operator.rsplit("__", 1)
 
-                values.append(self.walk(path))
+                if path in (field.extract or {}):
 
-                cast = value[0] if isinstance(value, list) and value else value
+                    store = store = f'"{field.store}__{path}"'
 
-                if isinstance(cast, bool):
-                    store = f'("{field.store}"#>>%s)::BOOLEAN'
-                elif isinstance(cast, int):
-                    store = f'("{field.store}"#>>%s)::INT'
-                elif isinstance(cast, float):
-                    store = f'("{field.store}"#>>%s)::FLOAT'
                 else:
-                    store = f'("{field.store}"#>>%s)'
+
+                    values.append(self.walk(path))
+
+                    cast = value[0] if isinstance(value, list) and value else value
+
+                    if isinstance(cast, bool):
+                        store = f'("{field.store}"#>>%s)::BOOLEAN'
+                    elif isinstance(cast, int):
+                        store = f'("{field.store}"#>>%s)::INT'
+                    elif isinstance(cast, float):
+                        store = f'("{field.store}"#>>%s)::FLOAT'
+                    else:
+                        store = f'("{field.store}"#>>%s)'
 
             else:
 
@@ -380,15 +393,22 @@ class Source(relations.Source):
 
             if not parent:
 
-                paths = [path] if path else field.label
+                paths = path if path else field.label
 
                 if paths:
 
                     for path in paths:
 
-                        ors.append(f'("{field.store}"#>>%s)::VARCHAR(255) ILIKE %s')
-                        values.append(cls.walk(path))
-                        values.append(f"%{model._like}%")
+                        if path in (field.extract or {}):
+
+                            ors.append(f'"{field.store}__{path}"::VARCHAR(255) ILIKE %s')
+                            values.append(f"%{model._like}%")
+
+                        else:
+
+                            ors.append(f'("{field.store}"#>>%s)::VARCHAR(255) ILIKE %s')
+                            values.append(cls.walk(path))
+                            values.append(f"%{model._like}%")
 
                 else:
 
