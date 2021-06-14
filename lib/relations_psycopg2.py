@@ -134,7 +134,7 @@ class Source(relations.Source):
                 model._fields._names[model._id].serial = True
                 model._fields._names[model._id].auto = True
 
-    def field_define(self, field, definitions, model): # pylint: disable=too-many-branches
+    def field_define(self, field, definitions): # pylint: disable=too-many-branches,too-many-statements
         """
         Add what this field is the definition
         """
