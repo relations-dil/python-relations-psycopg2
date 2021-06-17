@@ -571,6 +571,15 @@ class TestSource(unittest.TestCase):
         self.assertEqual(query.wheres, '"id" IN (%s,%s,%s)')
         self.assertEqual(values, [1, 2, 3])
 
+        field = relations.Field(int, name='id')
+        self.source.field_init(field)
+        field.filter([], 'in')
+        query = relations.query.Query()
+        values = []
+        self.source.field_retrieve( field, query, values)
+        self.assertEqual(query.wheres, 'FALSE')
+        self.assertEqual(values, [])
+
         # NOT IN
 
         field = relations.Field(int, name='id')
@@ -581,6 +590,15 @@ class TestSource(unittest.TestCase):
         self.source.field_retrieve( field, query, values)
         self.assertEqual(query.wheres, '"id" NOT IN (%s,%s,%s)')
         self.assertEqual(values, [1, 2, 3])
+
+        field = relations.Field(int, name='id')
+        self.source.field_init(field)
+        field.filter([], 'ne')
+        query = relations.query.Query()
+        values = []
+        self.source.field_retrieve( field, query, values)
+        self.assertEqual(query.wheres, 'TRUE')
+        self.assertEqual(values, [])
 
         # LIKE
 
@@ -754,6 +772,14 @@ class TestSource(unittest.TestCase):
         self.assertEqual(query.wheres, '("unit_id" IN (%s) OR "name"::VARCHAR(255) ILIKE %s)')
         self.assertEqual(values, [unit.id, '%p%'])
         self.assertTrue(test.overflow)
+
+        Unit.many().delete()
+        test = Test.many(like="p", _chunk=1)
+        query = copy.deepcopy(test.QUERY)
+        values = []
+        self.source.model_like(test, query, values)
+        self.assertEqual(query.wheres, '("name"::VARCHAR(255) ILIKE %s)')
+        self.assertEqual(values, ['%p%'])
 
         class Nut(SourceModel):
 
@@ -1071,6 +1097,8 @@ class TestSource(unittest.TestCase):
         self.assertEqual(Unit.one(1).retrieve().delete(), 1)
         self.assertEqual(len(Unit.many()), 0)
         self.assertEqual(len(Test.many()), 0)
+
+        self.assertEqual(Test.many().delete(), 0)
 
         [cursor.execute(statement) for statement in Plain.define()]
 
