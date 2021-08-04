@@ -14,7 +14,7 @@ import psycopg2.extras
 import relations
 import relations.query
 
-class Source(relations.Source):
+class Source(relations.Source): # pylint: disable=too-many-public-methods
     """
     PsycoPg2 Source
     """
@@ -172,7 +172,7 @@ class Source(relations.Source):
                 model._fields._names[model._id].auto = True
 
     @staticmethod
-    def column_define(field):
+    def column_define(field): # pylint: disable=too-many-branches
         """
         Defines just the column for field
         """
@@ -337,7 +337,7 @@ class Source(relations.Source):
             migrations.append(f'DROP "{definition["store"]}__{store}"')
 
     @staticmethod
-    def column_change(store, definition, migration):
+    def column_change(store, definition, migration): # pylint: disable=too-many-branches
         """
         Creates a list of column changes to that all can be applied at once
         """
@@ -392,7 +392,7 @@ class Source(relations.Source):
 
         return migrations
 
-    def field_change(self, definition, migration, migrations):
+    def field_change(self, definition, migration, migrations): # pylint: disable=too-many-branches
         """
         change the field
         """
