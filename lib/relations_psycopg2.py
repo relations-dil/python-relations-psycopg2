@@ -4,6 +4,7 @@ Module for intersting with PyMySQL
 
 # pylint: disable=arguments-differ
 
+import glob
 import copy
 import json
 
@@ -13,10 +14,12 @@ import psycopg2.extras
 import relations
 import relations.query
 
-class Source(relations.Source):
+class Source(relations.Source): # pylint: disable=too-many-public-methods
     """
-    PyMySQL Source
+    PsycoPg2 Source
     """
+
+    KIND = "postgresql"
 
     RETRIEVE = {
         'eq': '=',
@@ -50,21 +53,53 @@ class Source(relations.Source):
         if self.created and self.connection:
             self.connection.close()
 
+    def table_names(self, model):
+        """
+        Gets the base table and names for schemas
+        """
+
+        if isinstance(model, dict):
+            schema = model.get("schema")
+            table = model['table']
+        else:
+            schema = model.SCHEMA
+            table = model.TABLE
+
+        names = []
+
+        if schema is not None:
+            names.append(f'"{schema}"')
+        elif self.schema is not None:
+            names.append(f'"{self.schema}"')
+
+        return table, names
+
     def table(self, model):
         """
         Get the full table name
         """
 
-        table = []
+        table, names = self.table_names(model)
 
-        if model.SCHEMA is not None:
-            table.append(f'"{model.SCHEMA}"')
-        elif self.schema is not None:
-            table.append(f'"{self.schema}"')
+        names.append(f'"{table}"')
 
-        table.append(f'"{model.TABLE}"')
+        return ".".join(names)
 
-        return ".".join(table)
+    def index(self, model, index, full=True):
+        """
+        Get the full index name
+        """
+
+        table, names = self.table_names(model)
+
+        name = f'"{table}_{index.replace("-", "_")}"'
+
+        if not full:
+            return name
+
+        names.append(name)
+
+        return ".".join(names)
 
     @staticmethod
     def encode(model, values):
@@ -119,6 +154,8 @@ class Source(relations.Source):
         self.ensure_attribute(model, "QUERY")
         self.ensure_attribute(model, "DEFINITION")
 
+        model.UNDEFINE.append("QUERY")
+
         if model.TABLE is None:
             model.TABLE = model.NAME
 
@@ -134,106 +171,130 @@ class Source(relations.Source):
                 model._fields._names[model._id].serial = True
                 model._fields._names[model._id].auto = True
 
-    def field_define(self, field, definitions): # pylint: disable=too-many-branches,too-many-statements
+    @staticmethod
+    def column_define(field): # pylint: disable=too-many-branches
         """
-        Add what this field is the definition
+        Defines just the column for field
         """
 
-        if field.inject:
-            return
+        if field.get('definition') is not None:
+            return field['definition']
 
-        if field.definition is not None:
-            definitions.append(field.definition)
-            return
-
-        definition = [f'"{field.store}"']
+        definition = [f'"{field["store"]}"']
 
         default = None
 
-        if field.kind == bool:
+        if field["kind"] == 'bool':
 
             definition.append("BOOLEAN")
 
-            if field.default is not None and not callable(field.default):
-                default = f"DEFAULT {field.default}"
+            if field.get('default') is not None:
+                default = f"DEFAULT {field['default']}"
 
-        elif field.kind == int:
+        elif field["kind"] == 'int':
 
-            if field.serial:
+            if field.get("serial"):
                 definition.append("SERIAL")
             else:
                 definition.append("INT")
 
-            if field.default is not None and not callable(field.default):
-                default = f"DEFAULT {field.default}"
+            if field.get('default') is not None:
+                default = f"DEFAULT {field['default']}"
 
-        elif field.kind == float:
+        elif field["kind"] == 'float':
 
             definition.append("FLOAT")
 
-            if field.default is not None and not callable(field.default):
-                default = f"DEFAULT {field.default}"
+            if field.get('default') is not None:
+                default = f"DEFAULT {field['default']}"
 
-        elif field.kind == str:
+        elif field["kind"] == 'str':
 
-            length = field.length if field.length is not None else 255
+            length = field.get("length", 255)
 
             definition.append(f"VARCHAR({length})")
 
-            if field.default is not None and not callable(field.default):
-                default = f"DEFAULT '{field.default}'"
+            if field.get('default') is not None:
+                default = f"DEFAULT '{field['default']}'"
 
         else:
 
             definition.append("JSONB")
 
-            if field.default is not None:
-                default = f"DEFAULT '{json.dumps(field.default() if callable(field.default) else field.default) or '{}'}'"
+            if field["kind"] == 'list':
+                default = f"DEFAULT '{json.dumps(field.get('default', []))}'"
+            elif field["kind"] == 'dict':
+                default = f"DEFAULT '{json.dumps(field.get('default', {}))}'"
 
-        if not field.none:
+        if not field["none"]:
             definition.append("NOT NULL")
 
-        if field.primary_key:
+        if field.get("primary_key"):
             definition.append("PRIMARY KEY")
 
         if default:
             definition.append(default)
 
-        definitions.append(" ".join(definition))
+        return " ".join(definition)
 
-        for store in sorted((field.extract or {}).keys()):
+    def extract_define(self, store, path, kind):
+        """
+        Createa and extract store
+        """
 
-            kind = field.extract[store]
+        definition = [f'"{store}__{path}"']
 
-            definition = [f'"{field.store}__{store}"']
+        if kind == 'bool':
+            cast = "BOOLEAN"
+        elif kind == 'int':
+            cast = "INT"
+        elif kind == 'float':
+            cast = "FLOAT"
+        elif kind == 'str':
+            cast = "VARCHAR(255)"
+        else:
+            cast = "JSONB"
 
-            if kind == bool:
-                cast = "BOOLEAN"
-            elif kind == int:
-                cast = "INT"
-            elif kind == float:
-                cast = "FLOAT"
-            elif kind == str:
-                cast = "VARCHAR(255)"
-            else:
-                cast = "JSONB"
+        definition.append(cast)
 
-            definition.append(cast)
+        definition.append(f'GENERATED ALWAYS AS (("{store}"#>>\'{self.walk(path)}\')::{cast}) STORED')
 
-            definition.append(f'GENERATED ALWAYS AS (("{field.store}"#>>\'{self.walk(store)}\')::{cast}) STORED')
+        return " ".join(definition)
 
-            definitions.append(" ".join(definition))
+    def field_define(self, field, definitions, extract=True): # pylint: disable=too-many-branches,too-many-statements
+        """
+        Add what this field is the definition
+        """
 
-    def model_define(self, cls):
+        if field.get('inject'):
+            return
 
-        model = cls.thy()
+        definitions.append(self.column_define(field))
 
-        if model.DEFINITION is not None:
-            return model.DEFINITION
+        if extract:
+            for path in sorted(field.get('extract', {}).keys()):
+                definitions.append(self.extract_define(field['store'], path, field['extract'][path]))
+
+    def index_define(self, model, name, fields, unique=False):
+        """
+        Defines an index
+        """
+
+        kind = "UNIQUE INDEX" if unique else "INDEX"
+        index = self.index(model, name, full=False)
+        table = self.table(model)
+        fields = '","'.join(fields)
+
+        return f'CREATE {kind} {index} ON {table} ("{fields}")'
+
+    def model_define(self, model):
+
+        if model.get('definition') is not None:
+            return [model['definition']]
 
         definitions = []
 
-        self.record_define(model._fields, definitions)
+        self.record_define(model['fields'], definitions)
 
         sep = ',\n  '
 
@@ -241,17 +302,228 @@ class Source(relations.Source):
             f"CREATE TABLE IF NOT EXISTS {self.table(model)} (\n  {sep.join(definitions)}\n)"
         ]
 
-        for unique in model._unique:
-            name = f"{model.TABLE}_{unique.replace('-', '_')}"
-            fields = '","'.join(model._unique[unique])
-            statements.append(f'CREATE UNIQUE INDEX "{name}" ON {self.table(model)} ("{fields}")')
+        for unique in sorted(model['unique'].keys()):
+            statements.append(self.index_define(model, unique, model['unique'][unique], unique=True))
 
-        for index in model._index:
-            name = f"{model.TABLE}_{index.replace('-', '_')}"
-            fields = '","'.join(model._index[index])
-            statements.append(f'CREATE INDEX "{name}" ON {self.table(model)} ("{fields}")')
+        for index in sorted(model['index'].keys()):
+            statements.append(self.index_define(model, index, model['index'][index]))
 
         return statements
+
+    def field_add(self, migration, migrations):
+        """
+        add the field
+        """
+
+        if migration.get('inject'):
+            return
+
+        migrations.append(f"ADD {self.column_define(migration)}")
+
+        for path in sorted(migration.get('extract', {}).keys()):
+            migrations.append(f"ADD {self.extract_define(migration['store'], path, migration['extract'][path])}")
+
+    def field_remove(self, definition, migrations):
+        """
+        remove the field
+        """
+
+        if definition.get('inject'):
+            return
+
+        migrations.append(f'DROP "{definition["store"]}"')
+
+        for store in sorted(definition.get('extract', {}).keys()):
+            migrations.append(f'DROP "{definition["store"]}__{store}"')
+
+    @staticmethod
+    def column_change(store, definition, migration): # pylint: disable=too-many-branches
+        """
+        Creates a list of column changes to that all can be applied at once
+        """
+
+        migrations = []
+
+        if "kind" in migration:
+
+            if migration["kind"] == 'bool':
+                cast = "BOOLEAN"
+            elif migration["kind"] == 'int':
+                cast = "INT"
+            elif migration["kind"] == 'float':
+                cast = "FLOAT"
+            elif migration["kind"] == 'str':
+                length = migration.get("length", 255)
+                cast = f"VARCHAR({length})"
+            else:
+                cast = "JSONB"
+
+            migrations.append(f'ALTER "{store}" TYPE {cast} USING "{store}"::{cast}')
+
+            if migration['kind'] in ['list', 'dict'] and "default" not in migration:
+                default = json.dumps([] if migration['kind'] == 'list' else {})
+                migrations.append(f'ALTER "{store}" SET DEFAULT \'{default}\'')
+
+        kind = migration.get('kind', definition['kind'])
+
+        if "default" in migration:
+
+            if migration["default"] is not None:
+
+                if kind in ['bool', 'int', 'float']:
+                    default = migration["default"]
+                elif kind == 'str':
+                    default = f"'{migration['default']}'"
+                else:
+                    default = f"'{json.dumps(migration['default'])}'"
+
+                migrations.append(f'ALTER "{store}" SET DEFAULT {default}')
+
+            else:
+
+                migrations.append(f'ALTER "{store}" DROP DEFAULT')
+
+        if "none" in migration:
+
+            if migration["none"]:
+                migrations.append(f'ALTER "{store}" DROP NOT NULL')
+            else:
+                migrations.append(f'ALTER "{store}" SET NOT NULL')
+
+        return migrations
+
+    def field_change(self, definition, migration, migrations): # pylint: disable=too-many-branches
+        """
+        change the field
+        """
+
+        if definition.get('inject'):
+            return
+
+        store = migration.get('store', definition['store'])
+        extract = migration.get('extract', definition.get('extract', {}))
+
+        if definition['store'] != store:
+            migrations.append(f'RENAME "{definition["store"]}" TO "{store}"')
+
+        column = self.column_change(store, definition, migration)
+
+        if column:
+            migrations.append(f'{" ".join(column)}')
+
+        # Remove all the ones that were there and now aren't
+
+        for path in sorted(definition.get('extract', {}).keys()):
+            if path not in extract:
+                migrations.append(f'DROP "{definition["store"]}__{path}"')
+
+        for path in sorted(extract.keys()):
+
+            # Add the ones that are new
+
+            if path not in definition.get("extract"):
+
+                migrations.append(f'ADD {self.extract_define(store, path, migration["extract"][path])}')
+
+            else:
+
+                # if the field name changed, rename
+
+                if definition['store'] != store:
+
+                    migrations.append(f'RENAME "{definition["store"]}__{path}" "{store}__{path}"')
+
+                # If the kind changed, recast
+
+                if definition["extract"][path] != extract[path]:
+
+                    if extract[path] == 'bool':
+                        cast = "BOOLEAN"
+                    elif extract[path] == 'int':
+                        cast = "INT"
+                    elif extract[path] == 'float':
+                        cast = "FLOAT"
+                    elif extract[path] == 'str':
+                        cast = "VARCHAR(255)"
+                    else:
+                        cast = "JSONB"
+
+                    migrations.append(f'ALTER "{store}__{path}" TYPE {cast} USING "{store}__{path}"::{cast}')
+
+    def model_add(self, definition):
+        """
+        migrate the model
+        """
+
+        return self.model_define(definition)
+
+    def model_remove(self, definition):
+        """
+        remove the model
+        """
+
+        return [f"DROP TABLE IF EXISTS {self.table(definition)}"]
+
+    def model_change(self, definition, migration):
+        """
+        change the model
+        """
+
+        migrations = []
+
+        schema = migration.get("schema", definition.get("schema"))
+        table = migration.get("table", definition["table"])
+        model = {**definition, **migration}
+
+        if definition.get('schema') != schema:
+            migrations.append(f'ALTER TABLE {self.table(definition)} SET SCHEMA "{schema or "public"}"')
+
+        if definition["table"] != table:
+
+            definition_table = self.table({**definition, "schema": schema})
+            migration_table = self.table(model)
+
+            migrations.append(f"ALTER TABLE {definition_table} RENAME TO {migration_table}")
+
+            for name in sorted(definition["unique"].keys()):
+
+                definition_index = self.index({**definition, "schema": schema}, name)
+                migration_index = self.index(model, name)
+
+                migrations.append(f"ALTER INDEX {definition_index} RENAME TO {migration_index}")
+
+            for name in sorted(definition["index"].keys()):
+
+                definition_index = self.index({**definition, "schema": schema}, name)
+                migration_index = self.index(model, name)
+
+                migrations.append(f"ALTER INDEX {definition_index} RENAME TO {migration_index}")
+
+        for name in sorted(migration.get("unique", {}).get("remove", [])):
+            migrations.append(f'DROP INDEX {self.index(model, name)}')
+
+        for name in sorted(migration.get("index", {}).get("remove", [])):
+            migrations.append(f'DROP INDEX {self.index(model, name)}')
+
+        fields = []
+
+        self.record_change(definition['fields'], migration.get("fields", {}), fields)
+
+        migrations.extend([f'ALTER TABLE {self.table(model)} {field}' for field in fields])
+
+        for name in sorted(migration.get("unique", {}).get("add", {}).keys()):
+            migrations.append(self.index_define(model, name, migration['unique']['add'][name], unique=True))
+
+        for name in sorted(migration.get("unique", {}).get("rename", {}).keys()):
+            migrations.append(f'ALTER INDEX {self.index(model, name)} RENAME TO {self.index(model, migration["unique"]["rename"][name])}')
+
+        for name in sorted(migration.get("index", {}).get("add", {}).keys()):
+            migrations.append(self.index_define(model, name, migration['index']['add'][name]))
+
+        for name in sorted(migration.get("index", {}).get("rename", {}).keys()):
+            migrations.append(f'ALTER INDEX {self.index(model, name)} RENAME TO {self.index(model, migration["index"]["rename"][name])}')
+
+        return migrations
 
     def field_create(self, field, fields, clause):
         """
@@ -656,3 +928,126 @@ class Source(relations.Source):
         cursor.execute(query, values)
 
         return cursor.rowcount
+
+    def definition_convert(self, file_path, source_path):
+        """"
+        Converts a definition file to a MySQL definition file
+        """
+
+        definitions = []
+
+        with open(file_path, "r") as definition_file:
+            definition = json.load(definition_file)
+            for name in sorted(definition.keys()):
+                if definition[name]["source"] == self.name:
+                    definitions.extend(self.model_define(definition[name]))
+
+        if definitions:
+            file_name = file_path.split("/")[-1].split('.')[0]
+            with open(f"{source_path}/{file_name}.sql", "w") as source_file:
+                source_file.write(";\n\n".join(definitions))
+                source_file.write(";\n")
+
+    def migration_convert(self, file_path, source_path):
+        """"
+        Converts a migration file to a source definition file
+        """
+
+        migrations = []
+
+        with open(file_path, "r") as migration_file:
+            migration = json.load(migration_file)
+
+            for add in sorted(migration.get('add', {}).keys()):
+                if migration['add'][add]["source"] == self.name:
+                    migrations.extend(self.model_add(migration['add'][add]))
+
+            for remove in sorted(migration.get('remove', {}).keys()):
+                if migration['remove'][remove]["source"] == self.name:
+                    migrations.extend(self.model_remove(migration['remove'][remove]))
+
+            for change in sorted(migration.get('change', {}).keys()):
+                if migration['change'][change]['definition']["source"] == self.name:
+                    migrations.extend(
+                        self.model_change(migration['change'][change]['definition'], migration['change'][change]['migration'])
+                    )
+
+        if migrations:
+            file_name = file_path.split("/")[-1].split('.')[0]
+            with open(f"{source_path}/{file_name}.sql", "w") as source_file:
+                source_file.write(";\n\n".join(migrations))
+                source_file.write(";\n")
+
+    def execute(self, commands):
+        """
+        Execute one or more commands
+        """
+
+        if not isinstance(commands, list):
+            commands = [commands]
+
+        cursor = self.connection.cursor()
+
+        for command in commands:
+            if command.strip():
+                cursor.execute(command)
+
+        self.connection.commit()
+
+        cursor.close()
+
+    def migrate(self, source_path):
+        """
+        Migrate all the existing files to where we are
+        """
+
+        migrated = False
+
+        cursor = self.connection.cursor()
+
+        cursor.execute("""
+            SELECT COUNT(*) AS "migrations"
+            FROM information_schema.tables
+            WHERE table_schema = %s AND table_name = %s
+            LIMIT 1
+        """, (self.schema or "public", "_relations_migrations"))
+
+        migrations = cursor.fetchone()['migrations']
+
+        migration_paths = sorted(glob.glob(f"{source_path}/migration-*.sql"))
+
+        table = self.table({"table": "_relations_migrations"})
+
+        if not migrations:
+
+            cursor.execute(f"""
+                CREATE TABLE {table} (
+                    "migration" VARCHAR(255) NOT NULL,
+                    PRIMARY KEY ("migration")
+                );
+            """)
+
+            with open(f"{source_path}/definition.sql", 'r') as definition_file:
+                self.execute(definition_file.read().split(";\n"))
+                migrated = True
+
+        else:
+
+            cursor.execute(f'SELECT "migration" FROM {table} ORDER BY "migration"')
+
+            migrations = [row['migration'] for row in cursor.fetchall()]
+
+            for migration_path in migration_paths:
+                if migration_path.rsplit("/migration-", 1)[-1].split('.')[0] not in migrations:
+                    with open(migration_path, 'r') as migration_file:
+                        self.execute(migration_file.read().split(";\n"))
+                    migrated = True
+
+        for migration_path in migration_paths:
+            migration = migration_path.rsplit("/migration-", 1)[-1].split('.')[0]
+            if not migrations or migration not in migrations:
+                cursor.execute(f'INSERT INTO {table} VALUES (%s)', (migration, ))
+
+        self.connection.commit()
+
+        return migrated
