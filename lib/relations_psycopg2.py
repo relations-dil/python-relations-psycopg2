@@ -996,6 +996,31 @@ class Source(relations.Source): # pylint: disable=too-many-public-methods
 
         cursor.close()
 
+    def load(self, load_path):
+        """
+        Load a file
+        """
+
+        with open(load_path, 'r') as load_file:
+            self.execute(load_file.read().split(";\n"))
+
+    def list(self, source_path):
+        """
+        List the migration by pairs
+        """
+
+        migrations = {}
+
+        for file_path in glob.glob(f"{source_path}/*-*.sql"):
+
+            file_name = file_path.rsplit("/", 1)[-1]
+            kind, stamp = file_name.split('.')[0].split('-', 1)
+
+            migrations.setdefault(stamp, {})
+            migrations[stamp][kind] = file_name
+
+        return migrations
+
     def migrate(self, source_path):
         """
         Migrate all the existing files to where we are
@@ -1027,9 +1052,8 @@ class Source(relations.Source): # pylint: disable=too-many-public-methods
                 );
             """)
 
-            with open(f"{source_path}/definition.sql", 'r') as definition_file:
-                self.execute(definition_file.read().split(";\n"))
-                migrated = True
+            self.load(f"{source_path}/definition.sql")
+            migrated = True
 
         else:
 
@@ -1039,8 +1063,7 @@ class Source(relations.Source): # pylint: disable=too-many-public-methods
 
             for migration_path in migration_paths:
                 if migration_path.rsplit("/migration-", 1)[-1].split('.')[0] not in migrations:
-                    with open(migration_path, 'r') as migration_file:
-                        self.execute(migration_file.read().split(";\n"))
+                    self.load(migration_path)
                     migrated = True
 
         for migration_path in migration_paths:
