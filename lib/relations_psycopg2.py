@@ -1031,24 +1031,24 @@ class Source(relations.Source): # pylint: disable=too-many-public-methods
         cursor = self.connection.cursor()
 
         cursor.execute("""
-            SELECT COUNT(*) AS "migrations"
+            SELECT COUNT(*) AS "stamps"
             FROM information_schema.tables
             WHERE table_schema = %s AND table_name = %s
             LIMIT 1
-        """, (self.schema or "public", "_relations_migrations"))
+        """, (self.schema or "public", "_relations_migration"))
 
-        migrations = cursor.fetchone()['migrations']
+        stamps = cursor.fetchone()['stamps']
 
         migration_paths = sorted(glob.glob(f"{source_path}/migration-*.sql"))
 
-        table = self.table({"table": "_relations_migrations"})
+        table = self.table({"table": "_relations_migration"})
 
-        if not migrations:
+        if not stamps:
 
             cursor.execute(f"""
                 CREATE TABLE {table} (
-                    "migration" VARCHAR(255) NOT NULL,
-                    PRIMARY KEY ("migration")
+                    "stamp" VARCHAR(255) NOT NULL,
+                    PRIMARY KEY ("stamp")
                 );
             """)
 
@@ -1057,19 +1057,19 @@ class Source(relations.Source): # pylint: disable=too-many-public-methods
 
         else:
 
-            cursor.execute(f'SELECT "migration" FROM {table} ORDER BY "migration"')
+            cursor.execute(f'SELECT "stamp" FROM {table} ORDER BY "stamp"')
 
-            migrations = [row['migration'] for row in cursor.fetchall()]
+            stamps = [row['stamp'] for row in cursor.fetchall()]
 
             for migration_path in migration_paths:
-                if migration_path.rsplit("/migration-", 1)[-1].split('.')[0] not in migrations:
+                if migration_path.rsplit("/migration-", 1)[-1].split('.')[0] not in stamps:
                     self.load(migration_path)
                     migrated = True
 
         for migration_path in migration_paths:
-            migration = migration_path.rsplit("/migration-", 1)[-1].split('.')[0]
-            if not migrations or migration not in migrations:
-                cursor.execute(f'INSERT INTO {table} VALUES (%s)', (migration, ))
+            stamp = migration_path.rsplit("/migration-", 1)[-1].split('.')[0]
+            if not stamps or stamp not in stamps:
+                cursor.execute(f'INSERT INTO {table} VALUES (%s)', (stamp, ))
 
         self.connection.commit()
 
