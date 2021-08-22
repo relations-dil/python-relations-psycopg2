@@ -1204,7 +1204,65 @@ class TestSource(unittest.TestCase):
         self.assertEqual(query.wheres, '"id"<=%s')
         self.assertEqual(values, [1])
 
-        # Extract
+        # has
+
+        field = relations.Field(list, store="meta")
+        self.source.field_init(field)
+        field.filter("1", "has")
+        query = relations.query.Query()
+        values = []
+        self.source.field_retrieve(field, query, values)
+        self.assertEqual(query.wheres, '"meta"::JSONB @> %s::JSONB')
+        self.assertEqual(values, ['["1"]'])
+
+        field = relations.Field(dict, store="meta")
+        self.source.field_init(field)
+        field.filter("1", "a__has")
+        query = relations.query.Query()
+        values = []
+        self.source.field_retrieve(field, query, values)
+        self.assertEqual(query.wheres, '("meta"#>>%s)::JSONB @> %s::JSONB')
+        self.assertEqual(values, ['{a}', '["1"]'])
+
+        # any
+
+        field = relations.Field(list, store="meta")
+        self.source.field_init(field)
+        field.filter(["1", "2"], "any")
+        query = relations.query.Query()
+        values = []
+        self.source.field_retrieve(field, query, values)
+        self.assertEqual(query.wheres, '("meta"::JSONB @> %s::JSONB OR "meta"::JSONB @> %s::JSONB)')
+        self.assertEqual(values, ['"1"', '"2"'])
+
+        field = relations.Field(dict, store="meta")
+        self.source.field_init(field)
+        field.filter(["1", "2"], "a__any")
+        query = relations.query.Query()
+        values = []
+        self.source.field_retrieve(field, query, values)
+        self.assertEqual(query.wheres, '(("meta"#>>%s)::JSONB @> %s::JSONB OR ("meta"#>>%s)::JSONB @> %s::JSONB)')
+        self.assertEqual(values, ['{a}', '"1"', '{a}', '"2"'])
+
+        # all
+
+        field = relations.Field(list, store="meta")
+        self.source.field_init(field)
+        field.filter(["1", "2"], "all")
+        query = relations.query.Query()
+        values = []
+        self.source.field_retrieve(field, query, values)
+        self.assertEqual(query.wheres, '"meta"::JSONB @> %s::JSONB AND jsonb_array_length("meta"::JSONB)=%s')
+        self.assertEqual(values, ['["1", "2"]', 2])
+
+        field = relations.Field(dict, store="meta")
+        self.source.field_init(field)
+        field.filter(["1", "2"], "a__all")
+        query = relations.query.Query()
+        values = []
+        self.source.field_retrieve(field, query, values)
+        self.assertEqual(query.wheres, '("meta"#>>%s)::JSONB @> %s::JSONB AND jsonb_array_length(("meta"#>>%s)::JSONB)=%s')
+        self.assertEqual(values, ['{a}', '["1", "2"]', '{a}', 2])
 
     def test_model_like(self):
 
@@ -1380,7 +1438,7 @@ class TestSource(unittest.TestCase):
         self.assertEqual(model.name, ["things"])
         self.assertTrue(model.overflow)
 
-        Meta("dive", stuff=[1, 2, 3, None], things={"a": {"b": [1], "c": "sure"}, "4": 5, "for": [{"1": "yep"}]}).create()
+        Meta("dive", stuff=[1, 2, 3, None], things={"a": {"b": [1, 2], "c": "sure"}, "4": 5, "for": [{"1": "yep"}]}).create()
 
         model = Meta.many(stuff__1=2)
         self.assertEqual(model[0].name, "dive")
@@ -1407,6 +1465,24 @@ class TestSource(unittest.TestCase):
         self.assertEqual(len(model), 0)
 
         model = Meta.many(things___4=6)
+        self.assertEqual(len(model), 0)
+
+        model = Meta.many(things__a__b__has=[1, 2])
+        self.assertEqual(len(model), 1)
+
+        model = Meta.many(things__a__b__has=[1, 2, 3])
+        self.assertEqual(len(model), 0)
+
+        model = Meta.many(things__a__b__any=[1, 3])
+        self.assertEqual(len(model), 1)
+
+        model = Meta.many(things__a__b__any=[4, 3])
+        self.assertEqual(len(model), 0)
+
+        model = Meta.many(things__a__b__all=[2, 1])
+        self.assertEqual(len(model), 1)
+
+        model = Meta.many(things__a__b__all=[3, 2, 1])
         self.assertEqual(len(model), 0)
 
         Net(ip="1.2.3.4", subnet="1.2.3.0/24").create()
