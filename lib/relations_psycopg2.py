@@ -584,12 +584,14 @@ class Source(relations.Source): # pylint: disable=too-many-public-methods
 
         return model
 
-    def field_retrieve(self, field, query, values): # pylint: disable=too-many-branches
+    def field_retrieve(self, field, query, values): # pylint: disable=too-many-branches,too-many-statements
         """
         Adds where caluse to query
         """
 
         for operator, value in (field.criteria or {}).items():
+
+            walked = None
 
             if operator not in relations.Field.OPERATORS:
 
@@ -601,9 +603,10 @@ class Source(relations.Source): # pylint: disable=too-many-public-methods
 
                 else:
 
-                    values.append(self.walk(path))
+                    walked = self.walk(path)
+                    values.append(walked)
 
-                    cast = value[0] if isinstance(value, list) and value else value
+                    cast = value[0] if isinstance(value, list) and operator not in ["has", "any", "all"] and value else value
 
                     if isinstance(cast, bool):
                         store = f'("{field.store}"#>>%s)::BOOLEAN'
@@ -638,6 +641,24 @@ class Source(relations.Source): # pylint: disable=too-many-public-methods
                 values.append(f"%{value}%")
             elif operator == "null":
                 query.add(wheres=f"{store} {'IS' if value else 'IS NOT'} NULL")
+            elif operator == "has":
+                query.add(wheres=f'{store}::JSONB @> %s::JSONB')
+                values.append(json.dumps(value))
+            elif operator == "any":
+                contains = []
+                for index, each in enumerate(value):
+                    contains.append(f'{store}::JSONB @> %s::JSONB')
+                    if index and walked is not None:
+                        values.append(walked)
+                    values.append(json.dumps(each))
+                query.add(wheres=f'({" OR ".join(contains)})')
+            elif operator == "all":
+                query.add(wheres=f'{store}::JSONB @> %s::JSONB')
+                values.append(json.dumps(value))
+                query.add(wheres=f'jsonb_array_length({store}::JSONB)=%s')
+                if walked is not None:
+                    values.append(walked)
+                values.append(len(value))
             else:
                 query.add(wheres=f'{store}{self.RETRIEVE[operator]}%s')
                 values.append(value)
