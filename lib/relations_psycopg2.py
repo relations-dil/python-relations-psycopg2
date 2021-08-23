@@ -221,7 +221,7 @@ class Source(relations.Source): # pylint: disable=too-many-public-methods
 
             definition.append("JSONB")
 
-            if field["kind"] == 'list':
+            if field["kind"] in ['set', 'list']:
                 default = f"DEFAULT '{json.dumps(field.get('default', []))}'"
             elif field["kind"] == 'dict':
                 default = f"DEFAULT '{json.dumps(field.get('default', {}))}'"
@@ -624,13 +624,13 @@ class Source(relations.Source): # pylint: disable=too-many-public-methods
             if operator == "in":
                 if value:
                     query.add(wheres=f'{store} IN ({",".join(["%s" for _ in value])})')
-                    values.extend(value)
+                    values.extend(sorted(value))
                 else:
                     query.add(wheres='FALSE')
             elif operator == "ne":
                 if value:
                     query.add(wheres=f'{store} NOT IN ({",".join(["%s" for _ in value])})')
-                    values.extend(value)
+                    values.extend(sorted(value))
                 else:
                     query.add(wheres='TRUE')
             elif operator == "like":
@@ -643,10 +643,10 @@ class Source(relations.Source): # pylint: disable=too-many-public-methods
                 query.add(wheres=f"{store} {'IS' if value else 'IS NOT'} NULL")
             elif operator == "has":
                 query.add(wheres=f'{store}::JSONB @> %s::JSONB')
-                values.append(json.dumps(value))
+                values.append(json.dumps(sorted(value)))
             elif operator == "any":
                 contains = []
-                for index, each in enumerate(value):
+                for index, each in enumerate(sorted(value)):
                     contains.append(f'{store}::JSONB @> %s::JSONB')
                     if index and walked is not None:
                         values.append(walked)
@@ -654,14 +654,18 @@ class Source(relations.Source): # pylint: disable=too-many-public-methods
                 query.add(wheres=f'({" OR ".join(contains)})')
             elif operator == "all":
                 query.add(wheres=f'{store}::JSONB @> %s::JSONB')
-                values.append(json.dumps(value))
+                values.append(json.dumps(sorted(value)))
                 query.add(wheres=f'jsonb_array_length({store}::JSONB)=%s')
                 if walked is not None:
                     values.append(walked)
                 values.append(len(value))
             else:
-                query.add(wheres=f'{store}{self.RETRIEVE[operator]}%s')
-                values.append(value)
+                if isinstance(value, (bool, int, float, str)):
+                    query.add(wheres=f'{store}{self.RETRIEVE[operator]}%s')
+                    values.append(value)
+                else:
+                    query.add(wheres=f"{store}{self.RETRIEVE[operator]}CAST(%s AS JSONB)")
+                    values.append(json.dumps(sorted(value) if isinstance(value, set) else value))
 
     @classmethod
     def model_like(cls, model, query, values):
