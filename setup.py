@@ -3,7 +3,7 @@
 from setuptools import setup, find_packages
 setup(
     name="relations-psycopg2",
-    version="0.5.6",
+    version="0.5.7",
     package_dir = {'': 'lib'},
     py_modules = [
         'relations_psycopg2'
