@@ -2,7 +2,7 @@
 Module for intersting with PyMySQL
 """
 
-# pylint: disable=arguments-differ
+# pylint: disable=arguments-differ,unsupported-membership-test
 
 import glob
 import copy
@@ -134,7 +134,8 @@ class Source(relations.Source): # pylint: disable=too-many-public-methods
 
         return query
 
-    def create_id(self, cursor, model, query):
+    @staticmethod
+    def create_id(cursor, model, query):
         """
         Inserts a single record and sets the id
         """
