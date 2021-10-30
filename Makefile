@@ -48,7 +48,7 @@ setup:
 	apk update && apk add git gcc libc-dev make libpq postgresql-dev build-base && \
 	pip install git+https://github.com/gaf3/python-relations.git@5a19bb2#egg=relations && \
 	pip install git+https://github.com/gaf3/python-relations-sql.git@9cb071d#egg=relations-sql && \
-	pip install git+https://github.com/gaf3/python-relations-mysql.git@f8dcc64#egg=relations-postgresql && \
+	pip install git+https://github.com/gaf3/python-relations-postgresql.git@f8dcc64#egg=relations-postgresql && \
 	python setup.py install && \
 	python -m relations_psycopg2"
 
