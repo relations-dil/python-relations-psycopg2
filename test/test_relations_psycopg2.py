@@ -199,9 +199,7 @@ class TestSource(unittest.TestCase):
 CREATE UNIQUE INDEX "simple_name" ON "test_source"."simple" ("name");
 """)
 
-        cursor = self.source.connection.cursor()
-        cursor.execute(self.source.model_define(Simple.thy().define()))
-        cursor.close()
+        self.source.execute(self.source.model_define(Simple.thy().define()))
 
     def test_create_query(self):
 
