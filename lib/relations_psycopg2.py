@@ -87,7 +87,7 @@ class Source(relations.Source): # pylint: disable=too-many-public-methods
 
         cursor.close()
 
-    def model_init(self, model):
+    def init(self, model):
         """
         Init the model
         """
@@ -106,7 +106,7 @@ class Source(relations.Source): # pylint: disable=too-many-public-methods
         if model._id is not None and model._fields._names[model._id].auto is None and model._fields._names[model._id].kind == int:
             model._fields._names[model._id].auto = True
 
-    def model_define(self, migration=None, definition=None):
+    def define(self, migration=None, definition=None):
         """
         Creates the DDL for a model
         """
@@ -147,7 +147,7 @@ class Source(relations.Source): # pylint: disable=too-many-public-methods
 
         model[model._id] = cursor.fetchone()[store]
 
-    def model_create(self, model, query=None):
+    def create(self, model, query=None):
         """
         Executes the create
         """
@@ -182,7 +182,7 @@ class Source(relations.Source): # pylint: disable=too-many-public-methods
 
         return model
 
-    def field_retrieve(self, field, query):
+    def retrieve_field(self, field, query):
         """
         Adds where caluse to query
         """
@@ -263,7 +263,7 @@ class Source(relations.Source): # pylint: disable=too-many-public-methods
         query = self.SELECT(self.AS("total", self.SQL("COUNT(*)"))).FROM(self.TABLE_NAME(model.STORE, schema=model.SCHEMA))
 
         model._collate()
-        self.record_retrieve(model._record, query)
+        self.retrieve_record(model._record, query)
         self.like(model, query)
 
         return query
@@ -289,7 +289,7 @@ class Source(relations.Source): # pylint: disable=too-many-public-methods
 
         return self.retrieve_query(model)
 
-    def model_count(self, model, query=None):
+    def count(self, model, query=None):
         """
         Executes the count
         """
@@ -320,7 +320,7 @@ class Source(relations.Source): # pylint: disable=too-many-public-methods
 
         return values
 
-    def model_retrieve(self, model, verify=True, query=None):
+    def retrieve(self, model, verify=True, query=None):
         """
         Executes the retrieve
         """
@@ -365,13 +365,13 @@ class Source(relations.Source): # pylint: disable=too-many-public-methods
 
         return model
 
-    def model_labels(self, model, query=None):
+    def labels(self, model, query=None):
         """
         Creates the labels structure
         """
 
         if model._action == "retrieve":
-            self.model_retrieve(model, query=query)
+            self.retrieve(model, query=query)
 
         labels = relations.Labels(model)
 
@@ -380,7 +380,7 @@ class Source(relations.Source): # pylint: disable=too-many-public-methods
 
         return labels
 
-    def field_update(self, field, updates, query):
+    def update_field(self, field, updates, query):
         """
         Adds fields to update clause
         """
@@ -397,14 +397,14 @@ class Source(relations.Source): # pylint: disable=too-many-public-methods
 
         if model._action == "retrieve" and model._record._action == "update":
 
-            self.record_update(model._record, model._record.mass({}), query)
+            self.update_record(model._record, model._record.mass({}), query)
 
         elif model._id:
 
             if model._mode == "many":
                 raise relations.ModelError(model, "only one update query at a time")
 
-            self.record_update(model._record, model._record.update({}), query)
+            self.update_record(model._record, model._record.update({}), query)
 
             query.WHERE(**{model._fields._names[model._id].store: model[model._id]})
 
@@ -412,11 +412,11 @@ class Source(relations.Source): # pylint: disable=too-many-public-methods
 
             raise relations.ModelError(model, "nothing to update from")
 
-        self.record_retrieve(model._record, query)
+        self.retrieve_record(model._record, query)
 
         return query
 
-    def model_update(self, model, query=None):
+    def update(self, model, query=None):
         """
         Executes the update
         """
@@ -467,7 +467,7 @@ class Source(relations.Source): # pylint: disable=too-many-public-methods
 
         if model._action == "retrieve":
 
-            self.record_retrieve(model._record, query)
+            self.retrieve_record(model._record, query)
 
         elif model._id:
 
@@ -483,7 +483,7 @@ class Source(relations.Source): # pylint: disable=too-many-public-methods
 
         return query
 
-    def model_delete(self, model, query=None):
+    def delete(self, model, query=None):
         """
         Executes the delete
         """
@@ -497,7 +497,7 @@ class Source(relations.Source): # pylint: disable=too-many-public-methods
 
         return cursor.rowcount
 
-    def definition_convert(self, file_path, source_path):
+    def definition(self, file_path, source_path):
         """"
         Converts a definition file to a MySQL definition file
         """
@@ -508,14 +508,14 @@ class Source(relations.Source): # pylint: disable=too-many-public-methods
             definition = json.load(definition_file)
             for name in sorted(definition.keys()):
                 if definition[name]["source"] == self.name:
-                    definitions.append(self.model_define(definition[name]))
+                    definitions.append(self.define(definition[name]))
 
         if definitions:
             file_name = file_path.split("/")[-1].split('.')[0]
             with open(f"{source_path}/{file_name}.sql", "w") as source_file:
                 source_file.write("\n".join(definitions))
 
-    def migration_convert(self, file_path, source_path):
+    def migration(self, file_path, source_path):
         """"
         Converts a migration file to a source definition file
         """
@@ -527,16 +527,16 @@ class Source(relations.Source): # pylint: disable=too-many-public-methods
 
             for add in sorted(migration.get('add', {}).keys()):
                 if migration['add'][add]["source"] == self.name:
-                    migrations.append(self.model_define(migration['add'][add]))
+                    migrations.append(self.define(migration['add'][add]))
 
             for remove in sorted(migration.get('remove', {}).keys()):
                 if migration['remove'][remove]["source"] == self.name:
-                    migrations.append(self.model_define(definition=migration['remove'][remove]))
+                    migrations.append(self.define(definition=migration['remove'][remove]))
 
             for change in sorted(migration.get('change', {}).keys()):
                 if migration['change'][change]['definition']["source"] == self.name:
                     migrations.append(
-                        self.model_define(migration['change'][change]['migration'], migration['change'][change]['definition'])
+                        self.define(migration['change'][change]['migration'], migration['change'][change]['definition'])
                     )
 
         if migrations:
