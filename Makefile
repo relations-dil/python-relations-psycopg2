@@ -46,9 +46,9 @@ lint:
 setup:
 	docker run $(TTY) $(VOLUMES) $(INSTALL) sh -c "cp -r /opt/service /opt/install && cd /opt/install/ && \
 	apk update && apk add git gcc libc-dev make libpq postgresql-dev build-base && \
-	pip install git+https://github.com/gaf3/python-relations.git@0.6.4#egg=relations && \
-	pip install git+https://github.com/gaf3/python-relations-sql.git@0.6.0#egg=relations-sql && \
-	pip install git+https://github.com/gaf3/python-relations-postgresql.git@0.1.0#egg=relations-postgresql && \
+	pip install git+https://github.com/gaf3/python-relations.git@0.6.5#egg=relations && \
+	pip install git+https://github.com/gaf3/python-relations-sql.git@0.6.1#egg=relations-sql && \
+	pip install git+https://github.com/gaf3/python-relations-postgresql.git@0.2.0#egg=relations-postgresql && \
 	python setup.py install && \
 	python -m relations_psycopg2"
 
