@@ -1,6 +1,6 @@
-git+https://github.com/gaf3/python-relations.git@0.6.4#egg=relations
-git+https://github.com/gaf3/python-relations-sql.git@0.6.0#egg=relations-sql
-git+https://github.com/gaf3/python-relations-postgresql.git@0.1.0#egg=relations-postgresql
+git+https://github.com/gaf3/python-relations.git@0.6.5#egg=relations
+git+https://github.com/gaf3/python-relations-sql.git@0.6.1#egg=relations-sql
+git+https://github.com/gaf3/python-relations-postgresql.git@0.2.0#egg=relations-postgresql
 psycopg2==2.8.6
 ptvsd==4.3.2
 coverage==5.2.1
