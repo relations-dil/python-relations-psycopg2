@@ -200,9 +200,9 @@ class Source(relations.Source): # pylint: disable=too-many-public-methods
         if model._like is None:
             return
 
-        labels = self.OR()
+        titles = self.OR()
 
-        for name in model._label:
+        for name in model._titles:
 
             path = name.split("__", 1)
             name = path.pop(0)
@@ -215,23 +215,23 @@ class Source(relations.Source): # pylint: disable=too-many-public-methods
                 if field.name == relation.child_field:
                     parent = relation.Parent.many(like=model._like).limit(model._chunk)
                     if parent[relation.parent_field]:
-                        labels(self.IN(field.store, parent[relation.parent_field]))
+                        titles(self.IN(field.store, parent[relation.parent_field]))
                         model.overflow = model.overflow or parent.overflow
                     else:
                         parent = True
 
             if not parent:
 
-                paths = path if path else field.label
+                paths = path if path else field.titles
 
                 if paths:
                     for path in paths:
-                        labels(self.LIKE(f"{field.store}__{path}", model._like, extracted=path in (field.extract or {})))
+                        titles(self.LIKE(f"{field.store}__{path}", model._like, extracted=path in (field.extract or {})))
                 else:
-                    labels(self.LIKE(field.store, model._like))
+                    titles(self.LIKE(field.store, model._like))
 
-        if labels:
-            query.WHERE(labels)
+        if titles:
+            query.WHERE(titles)
 
     def sort(self, model, query):
         """
@@ -282,7 +282,7 @@ class Source(relations.Source): # pylint: disable=too-many-public-methods
 
         return query
 
-    def labels_query(self, model):
+    def titles_query(self, model):
         """
         Get query for what's being selected
         """
@@ -365,20 +365,20 @@ class Source(relations.Source): # pylint: disable=too-many-public-methods
 
         return model
 
-    def labels(self, model, query=None):
+    def titles(self, model, query=None):
         """
-        Creates the labels structure
+        Creates the titles structure
         """
 
         if model._action == "retrieve":
             self.retrieve(model, query=query)
 
-        labels = relations.Labels(model)
+        titles = relations.Titles(model)
 
-        for labeling in model._each():
-            labels.add(labeling)
+        for titling in model._each():
+            titles.add(titling)
 
-        return labels
+        return titles
 
     def update_field(self, field, updates, query):
         """

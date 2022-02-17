@@ -1,6 +1,6 @@
-git+https://github.com/relations-dil/python-relations.git@0.6.6#egg=python-relations
-git+https://github.com/relations-dil/python-relations-sql.git@0.6.2#egg=python-relations-sql
-git+https://github.com/relations-dil/python-relations-postgresql.git@0.3.0#egg=python-relations-postgresql
+git+https://github.com/relations-dil/python-relations.git@7f6586f#egg=python-relations
+git+https://github.com/relations-dil/python-relations-sql.git@023a386#egg=python-relations-sql
+git+https://github.com/relations-dil/python-relations-postgresql.git@d6b2aea#egg=python-relations-postgresql
 psycopg2==2.8.6
 ptvsd==4.3.2
 coverage==5.2.1
