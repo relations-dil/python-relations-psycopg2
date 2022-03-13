@@ -1,7 +1,7 @@
 ACCOUNT=gaf3
 IMAGE=python-relations-psycopg2
 INSTALL=python:3.8.5-alpine3.12
-VERSION?=0.6.3
+VERSION?=0.6.4
 NETWORK=relations.io
 POSTGRES_IMAGE=postgres:12.4-alpine
 POSTGRES_HOST=$(ACCOUNT)-$(IMAGE)-postgres
@@ -46,9 +46,9 @@ lint:
 setup:
 	docker run $(TTY) $(VOLUMES) $(INSTALL) sh -c "cp -r /opt/service /opt/install && cd /opt/install/ && \
 	apk update && apk add git gcc libc-dev make libpq postgresql-dev build-base && \
-	pip install git+https://github.com/relations-dil/python-relations.git@0.6.6#egg=python-relations && \
-	pip install git+https://github.com/relations-dil/python-relations-sql.git@0.6.2#egg=python-relations-sql && \
-	pip install git+https://github.com/relations-dil/python-relations-postgresql.git@0.3.0#egg=python-relations-postgresql && \
+	pip install git+https://github.com/relations-dil/python-relations.git@0.6.8#egg=python-relations && \
+	pip install git+https://github.com/relations-dil/python-relations-sql.git@0.6.4#egg=python-relations-sql && \
+	pip install git+https://github.com/relations-dil/python-relations-postgresql.git@0.5.0#egg=python-relations-postgresql && \
 	python setup.py install && \
 	python -m relations_psycopg2"
 
