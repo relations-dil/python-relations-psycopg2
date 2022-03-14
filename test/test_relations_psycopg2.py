@@ -1055,7 +1055,7 @@ CREATE UNIQUE INDEX "simple_name" ON "test_source"."simple" ("name");
 
 DROP TABLE IF EXISTS "test_source"."simple";
 
-ALTER TABLE "simple" RENAME TO "simples";
+ALTER TABLE "test_source"."simple" RENAME TO "simples";
 """)
 
     def test_load(self):
