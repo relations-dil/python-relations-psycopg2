@@ -1,4 +1,4 @@
-# python-relations-psycopg2
+# relations-psycopg2
 
 DB Modeling for PostgreSQL using the psycopg2 library
 
