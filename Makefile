@@ -1,7 +1,7 @@
 ACCOUNT=gaf3
 IMAGE=python-relations-psycopg2
 INSTALL=python:3.8.5-alpine3.12
-VERSION?=0.6.5
+VERSION?=0.6.6
 NETWORK=relations.io
 POSTGRES_IMAGE=postgres:12.4-alpine
 POSTGRES_HOST=$(ACCOUNT)-$(IMAGE)-postgres
@@ -18,7 +18,11 @@ ENVIRONMENT=-e POSTGRES_HOST=$(POSTGRES_HOST) \
 			-e PYTHONUNBUFFERED=1 \
 			-e test="python -m unittest -v" \
 			-e debug="python -m ptvsd --host 0.0.0.0 --port 5678 --wait -m unittest -v"
-.PHONY: build network postgres shell debug test lint setup tag untag
+PYPI=-v ${PWD}/LICENSE.txt:/opt/service/LICENSE.txt \
+	-v ${PWD}/PYPI.md:/opt/service/README.md \
+	-v ${HOME}/.pypirc:/opt/service/.pypirc
+
+.PHONY: build network postgres shell debug test lint setup tag untag testpypi pypi
 
 build:
 	docker build . -t $(ACCOUNT)/$(IMAGE):$(VERSION)
@@ -44,7 +48,7 @@ lint:
 	docker run $(TTY) $(VOLUMES) $(ENVIRONMENT) $(ACCOUNT)/$(IMAGE):$(VERSION) sh -c "pylint --rcfile=.pylintrc lib/"
 
 setup:
-	docker run $(TTY) $(VOLUMES) $(INSTALL) sh -c "cp -r /opt/service /opt/install && cd /opt/install/ && \
+	docker run $(TTY) $(VOLUMES) $(PYPI) $(INSTALL) sh -c "cp -r /opt/service /opt/install && cd /opt/install/ && \
 	apk update && apk add git gcc libc-dev make libpq postgresql-dev build-base && \
 	pip install \
 		git+https://github.com/relations-dil/python-relations.git@0.6.9#egg=python-relations \
@@ -60,3 +64,13 @@ tag:
 untag:
 	-git tag -d $(VERSION)
 	git push origin ":refs/tags/$(VERSION)"
+
+testpypi:
+	docker run $(TTY) $(VOLUMES) $(PYPI) gaf3/pypi sh -c "cd /opt/service && \
+	python -m build && \
+	python -m twine upload -r testpypi --config-file=.pypirc dist/*"
+
+pypi:
+	docker run $(TTY) $(VOLUMES) $(PYPI) gaf3/pypi sh -c "cd /opt/service && \
+	python -m build && \
+	python -m twine upload --config-file=.pypirc dist/*"
