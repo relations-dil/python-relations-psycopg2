@@ -35,7 +35,7 @@ import relations_psycopg2
 # The source is a string, the backend of which is defined at runtime
 
 class SourceModel(relations.Model):
-    SOURCE = "psycopg2Source"
+    SOURCE = "PsycoPg2Source"
 
 class Simple(SourceModel):
     id = int
