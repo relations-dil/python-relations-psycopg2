@@ -7,7 +7,7 @@ with open("README.md", "r") as readme_file:
 
 setup(
     name="relations-psycopg2",
-    version="0.6.6",
+    version="0.6.7",
     package_dir = {'': 'lib'},
     py_modules = [
         'relations_psycopg2'
@@ -16,7 +16,7 @@ setup(
         'psycopg2==2.8.6',
         'relations-postgresql>=0.6.1'
     ],
-    url="https://github.com/relations-dil/python-relations-postgresql",
+    url="https://github.com/relations-dil/python-relations-psycopg2",
     author="Gaffer Fitch",
     author_email="relations@gaf3.com",
     description="DB Modeling for PostgreSQL using the psycopg2 library",
