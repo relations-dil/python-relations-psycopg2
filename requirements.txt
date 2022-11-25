@@ -1,4 +1,5 @@
-relations-postgresql==0.6.1
+relations-dil==0.6.12
+relations-postgresql==0.6.2
 psycopg2==2.8.6
 ptvsd==4.3.2
 coverage==5.2.1

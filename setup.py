@@ -7,14 +7,15 @@ with open("README.md", "r") as readme_file:
 
 setup(
     name="relations-psycopg2",
-    version="0.6.8",
+    version="0.6.9",
     package_dir = {'': 'lib'},
     py_modules = [
         'relations_psycopg2'
     ],
     install_requires=[
         'psycopg2==2.8.6',
-        'relations-postgresql>=0.6.1'
+        'relations-dil>=0.6.12',
+        'relations-postgresql>=0.6.2'
     ],
     url="https://github.com/relations-dil/python-relations-psycopg2",
     author="Gaffer Fitch",
