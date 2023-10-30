@@ -84,6 +84,23 @@ class Case(SourceModel):
 relations.OneToMany(Unit, Test)
 relations.OneToOne(Test, Case)
 
+class Sis(SourceModel):
+    id = int
+    name = str
+    bro_id = set
+
+class Bro(SourceModel):
+    id = int
+    name = str
+    sis_id = set
+
+class SisBro(SourceModel):
+    ID = None
+    bro_id = int
+    sis_id = int
+
+relations.ManyToMany(Sis, Bro, SisBro)
+
 class TestSource(unittest.TestCase):
 
     maxDiff = None
@@ -218,6 +235,12 @@ CREATE UNIQUE INDEX "simple_name" ON "test_source"."simple" ("name");
         model = Simple([["sure"], ["fine"]])
         self.assertRaisesRegex(relations.ModelError, "only one create query at a time", model.query)
 
+        query = Sis("sure", bro_id=[1, 2, 3]).query()
+        query.generate()
+
+        self.assertEqual(query.sql, """INSERT INTO "test_source"."sis" ("name") VALUES (%s)""")
+        self.assertEqual(query.args, ["sure"])
+
     def test_create_id(self):
 
         self.source.execute(Simple.define())
@@ -281,6 +304,22 @@ CREATE UNIQUE INDEX "simple_name" ON "test_source"."simple" ("name");
             "things": {"for": [{"1": "yep"}]},
             "things__for__0____1": "yep"
         })
+
+        sis = Sis("Sally", bro_id=[2, 3, 4], _bulk=True)
+        self.assertRaisesRegex(relations.ModelError, "cannot create ties in bulk", sis.create)
+
+        self.source.execute(Sis.define())
+        self.source.execute(Bro.define())
+        self.source.execute(SisBro.define())
+
+        sis = Sis("Sally", bro_id=[2, 3, 4]).create()
+
+        cursor.execute("SELECT * FROM test_source.sis_bro ORDER BY bro_id")
+        self.assertEqual(cursor.fetchall(), [
+            {"sis_id": sis.id, "bro_id": 2},
+            {"sis_id": sis.id, "bro_id": 3},
+            {"sis_id": sis.id, "bro_id": 4}
+        ])
 
         cursor.close()
 
@@ -588,6 +627,9 @@ LIMIT %s""")
 
         self.assertEqual(Unit.many(like="p").count(), 1)
 
+        sis = Sis.many(bro_id=[2, 3, 4])
+        self.assertRaisesRegex(relations.ModelError, "cannot filter ties", sis.count)
+
     def test_values_retrieve(self):
 
         model = unittest.mock.MagicMock()
@@ -636,6 +678,9 @@ LIMIT %s""")
         self.source.execute(Case.define())
         self.source.execute(Meta.define())
         self.source.execute(Net.define())
+        self.source.execute(Sis.define())
+        self.source.execute(Bro.define())
+        self.source.execute(SisBro.define())
 
         Unit([["stuff"], ["people"]]).create()
 
@@ -794,6 +839,21 @@ LIMIT %s""")
         model = Net.many(subnet__max_value=int(ipaddress.IPv4Address('1.2.3.0')))
         self.assertEqual(len(model), 0)
 
+        sis = Sis.many(bro_id=[2, 3, 4])
+        self.assertRaisesRegex(relations.ModelError, "cannot filter ties", sis.retrieve)
+
+        tom = Bro("Tom").create()
+        dick = Bro("Dick").create()
+
+        dot = Sis("Dot").create()
+        nikki = Sis("Nikki").create()
+
+        mary = Sis("Mary", bro_id=[tom.id, dick.id]).create()
+        harry = Bro("Harry", sis_id=[dot.id, nikki.id]).create()
+
+        self.assertEqual(mary.bro.id, [dick.id, tom.id])
+        self.assertEqual(harry.sis.id, [dot.id, nikki.id])
+
     def test_titles(self):
 
         self.source.execute(Unit.define())
@@ -801,6 +861,9 @@ LIMIT %s""")
         self.source.execute(Case.define())
         self.source.execute(Meta.define())
         self.source.execute(Net.define())
+        self.source.execute(Sis.define())
+        self.source.execute(Bro.define())
+        self.source.execute(SisBro.define())
 
         Unit("people").create().test.add("stuff").add("things").create()
 
@@ -837,6 +900,9 @@ LIMIT %s""")
         self.assertEqual(Net.many().titles().titles, {
             1: ["1.2.3.4"]
         })
+
+        sis = Sis.many(bro_id=[2, 3, 4])
+        self.assertRaisesRegex(relations.ModelError, "cannot filter ties", sis.titles)
 
     def test_update_field(self):
 
@@ -901,6 +967,9 @@ LIMIT %s""")
         self.source.execute(Case.define())
         self.source.execute(Meta.define())
         self.source.execute(Net.define())
+        self.source.execute(Sis.define())
+        self.source.execute(Bro.define())
+        self.source.execute(SisBro.define())
 
         Unit([["people"], ["stuff"]]).create()
 
@@ -943,6 +1012,26 @@ LIMIT %s""")
         self.assertEqual(Net.one(ping.id).ip.compressed, "13.14.15.16")
         self.assertEqual(Net.one(pong.id).ip.compressed, "5.6.7.8")
 
+        sis = Sis.many(name="Sally").set(bro_id=[1, 2, 3])
+        self.assertRaisesRegex(relations.ModelError, "cannot update ties in retrieve mode", sis.update)
+
+        tom = Bro("Tom").create()
+        dick = Bro("Dick").create()
+
+        dot = Sis("Dot").create()
+        nikki = Sis("Nikki").create()
+
+        tom.sis_id = [nikki.id, dot.id]
+        dot.bro_id = [tom.id, dick.id]
+
+        tom.update()
+        dot.update()
+
+        self.assertEqual(Bro.one(name="Tom").sis.id, [dot.id, nikki.id])
+        self.assertEqual(Sis.one(name="Dot").bro.id, [dick.id, tom.id])
+        self.assertEqual(Bro.one(name="Dick").sis.id, [dot.id])
+        self.assertEqual(Sis.one(name="Nikki").bro.id, [tom.id])
+
     def test_delete_query(self):
 
         self.source.execute(Unit.define())
@@ -974,6 +1063,9 @@ LIMIT %s""")
         self.source.execute(Test.define())
         self.source.execute(Case.define())
         self.source.execute(Plain.define())
+        self.source.execute(Sis.define())
+        self.source.execute(Bro.define())
+        self.source.execute(SisBro.define())
 
         unit = Unit("people")
         unit.test.add("stuff").add("things")
@@ -991,6 +1083,27 @@ LIMIT %s""")
 
         plain = Plain(0, "nope").create()
         self.assertRaisesRegex(relations.ModelError, "plain: nothing to delete from", plain.delete)
+
+        self.assertRaisesRegex(relations.ModelError, "cannot delete ties in retrieve mode", Sis.many().delete)
+
+        tom = Bro("Tom").create()
+        dick = Bro("Dick").create()
+
+        dot = Sis("Dot").create()
+        nikki = Sis("Nikki").create()
+
+        tom.sis_id = [nikki.id, dot.id]
+        dot.bro_id = [tom.id, dick.id]
+
+        tom.update()
+        dot.update()
+
+        dick.one(name="Dick").retrieve().delete()
+        nikki.one(name="Nikki").retrieve().delete()
+
+        self.assertEqual(Bro.one(name="Tom").sis.id, [dot.id])
+        self.assertEqual(Sis.one(name="Dot").bro.id, [tom.id])
+        self.assertEqual(SisBro.many().count(), 1)
 
     def test_definition(self):
 

@@ -6,7 +6,7 @@ WORKDIR /opt/service
 
 COPY requirements.txt .
 
-RUN pip install -r requirements.txt
+RUN apk add git && pip install -r requirements.txt
 
 COPY setup.py .
 COPY lib lib
