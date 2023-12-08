@@ -1093,9 +1093,10 @@ LIMIT %s""")
         bro = Bro("Harry").create()
         Sis.many(name="Sally").set(bro_id=[bro.id]).update()
 
-        Sis.one(name="Sally").delete()
+        Sis.many(name="Sally").delete()
 
         self.assertEqual(Bro.one(name="Harry").sis.id, [])
+        self.assertEqual(SisBro.many().count(), 0)
 
         tom = Bro("Tom").create()
         dick = Bro("Dick").create()
