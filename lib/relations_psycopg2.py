@@ -160,7 +160,6 @@ class Source(relations.Source): # pylint: disable=too-many-public-methods
             for creating in model._each("create"):
                 create_query = query or self.create_query(creating)
                 self.create_id(cursor, creating, create_query)
-                self.create_ties(creating)
         else:
             create_query = query or self.create_query(model)
             create_query.generate()
@@ -171,6 +170,10 @@ class Source(relations.Source): # pylint: disable=too-many-public-methods
         if not model._bulk:
 
             for creating in model._each("create"):
+
+                if model._id:
+                    self.create_ties(creating)
+
                 for parent_child in creating.CHILDREN:
                     if creating._children.get(parent_child):
                         creating._children[parent_child].create()
@@ -442,9 +445,29 @@ class Source(relations.Source): # pylint: disable=too-many-public-methods
 
             update_query = query or self.update_query(model)
 
-            update_query.generate()
-            cursor.execute(update_query.sql, update_query.args)
-            updated = cursor.rowcount
+            if update_query.SET.expressions:
+
+                update_query.generate()
+                cursor.execute(update_query.sql, update_query.args)
+                updated = cursor.rowcount
+
+            ties = model._record.tie({})
+
+            if ties:
+
+                store_id = model._fields._names[model._id].store
+
+                id_query = self.SELECT(store_id, WHERE=update_query.WHERE).FROM(self.TABLE_NAME(model.STORE, schema=model.SCHEMA))
+
+                id_query.generate()
+
+                cursor.execute(id_query.sql, id_query.args)
+                ids = [row[store_id] for row in cursor.fetchall()]
+
+                self.delete_ties(model, ids)
+                self.create_ties(model, ties, ids)
+
+                updated = len(ids)
 
         elif model._id:
 
@@ -488,6 +511,7 @@ class Source(relations.Source): # pylint: disable=too-many-public-methods
             store = model._fields._names[model._id].store
             for deleting in model._each():
                 ids.append(deleting[model._id])
+
             query.WHERE(**{f"{store}__in": ids})
 
         else:

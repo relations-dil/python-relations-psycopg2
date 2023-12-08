@@ -1,7 +1,7 @@
 # relations-dil==0.6.14
 # relations-sql==0.6.8
 # relations-postgresql==0.6.3
-relations-dil @ git+https://github.com/relations-dil/python-relations@09f27c34eb079dd29042cb9460b140fea336b9f3
+relations-dil @ git+https://github.com/relations-dil/python-relations@ab8af7bb24bceab2286175c8df5626137294f46d
 relations-sql @ git+https://github.com/relations-dil/python-relations-sql@c0e672d97e2b5a8ed3505f7c9cf734fee2e29881
 relations-postgresql @ git+https://github.com/relations-dil/python-relations-postgresql@d48d00dfa1d4cace6ddfef86256188cc94ec8403
 psycopg2==2.8.6
