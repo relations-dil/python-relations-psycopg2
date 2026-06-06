@@ -84,6 +84,23 @@ class Case(SourceModel):
 relations.OneToMany(Unit, Test)
 relations.OneToOne(Test, Case)
 
+class Sis(SourceModel):
+    id = int
+    name = str
+    bro_id = set
+
+class Bro(SourceModel):
+    id = int
+    name = str
+    sis_id = set
+
+class SisBro(SourceModel):
+    ID = None
+    bro_id = int
+    sis_id = int
+
+relations.ManyToMany(Sis, Bro, SisBro)
+
 class TestSource(unittest.TestCase):
 
     maxDiff = None
@@ -218,6 +235,12 @@ CREATE UNIQUE INDEX "simple_name" ON "test_source"."simple" ("name");
         model = Simple([["sure"], ["fine"]])
         self.assertRaisesRegex(relations.ModelError, "only one create query at a time", model.query)
 
+        query = Sis("sure", bro_id=[1, 2, 3]).query()
+        query.generate()
+
+        self.assertEqual(query.sql, """INSERT INTO "test_source"."sis" ("name") VALUES (%s)""")
+        self.assertEqual(query.args, ["sure"])
+
     def test_create_id(self):
 
         self.source.execute(Simple.define())
@@ -281,6 +304,22 @@ CREATE UNIQUE INDEX "simple_name" ON "test_source"."simple" ("name");
             "things": {"for": [{"1": "yep"}]},
             "things__for__0____1": "yep"
         })
+
+        sis = Sis("Sally", bro_id=[2, 3, 4], _bulk=True)
+        self.assertRaisesRegex(relations.ModelError, "cannot create ties in bulk", sis.create)
+
+        self.source.execute(Sis.define())
+        self.source.execute(Bro.define())
+        self.source.execute(SisBro.define())
+
+        sis = Sis("Sally", bro_id=[2, 3, 4]).create()
+
+        cursor.execute("SELECT * FROM test_source.sis_bro ORDER BY bro_id")
+        self.assertEqual(cursor.fetchall(), [
+            {"sis_id": sis.id, "bro_id": 2},
+            {"sis_id": sis.id, "bro_id": 3},
+            {"sis_id": sis.id, "bro_id": 4}
+        ])
 
         cursor.close()
 
@@ -588,6 +627,17 @@ LIMIT %s""")
 
         self.assertEqual(Unit.many(like="p").count(), 1)
 
+        self.source.execute(Sis.define())
+        self.source.execute(Bro.define())
+        self.source.execute(SisBro.define())
+
+        tom = Bro("Tom").create()
+        Sis("Sally", bro_id=[tom.id]).create()
+        Sis("Mary").create()
+
+        self.assertEqual(Sis.many(bro_id=[tom.id]).count(), 1)
+        self.assertEqual(Sis.many(bro_id=[999]).count(), 0)
+
     def test_values_retrieve(self):
 
         model = unittest.mock.MagicMock()
@@ -636,6 +686,9 @@ LIMIT %s""")
         self.source.execute(Case.define())
         self.source.execute(Meta.define())
         self.source.execute(Net.define())
+        self.source.execute(Sis.define())
+        self.source.execute(Bro.define())
+        self.source.execute(SisBro.define())
 
         Unit([["stuff"], ["people"]]).create()
 
@@ -794,6 +847,76 @@ LIMIT %s""")
         model = Net.many(subnet__max_value=int(ipaddress.IPv4Address('1.2.3.0')))
         self.assertEqual(len(model), 0)
 
+        tom = Bro("Tom").create()
+        dick = Bro("Dick").create()
+
+        dot = Sis("Dot").create()
+        nikki = Sis("Nikki").create()
+
+        mary = Sis("Mary", bro_id=[tom.id, dick.id]).create()
+        harry = Bro("Harry", sis_id=[dot.id, nikki.id]).create()
+
+        self.assertEqual(mary.bro.id, [dick.id, tom.id])
+        self.assertEqual(harry.sis.id, [dot.id, nikki.id])
+
+        self.assertEqual(len(Sis.many(bro_id=[tom.id])), 1)
+        self.assertEqual(Sis.many(bro_id=[tom.id])[0].name, "Mary")
+
+        self.assertEqual(len(Bro.many(sis_id=[dot.id])), 1)
+        self.assertEqual(Bro.many(sis_id=[dot.id])[0].name, "Harry")
+
+        self.assertEqual(len(Sis.many(bro_id=[999])), 0)
+
+    def test_retrieve_ties_query(self):
+
+        self.source.execute(Sis.define())
+        self.source.execute(Bro.define())
+        self.source.execute(SisBro.define())
+
+        # The tie field is a set, so it's queried with set operators (has/any/all),
+        # resolved through the tie table. A sister has many brothers, so "any of" and
+        # "all of" are genuinely different queries.
+
+        tom = Bro("Tom").create()
+        dick = Bro("Dick").create()
+        harry = Bro("Harry").create()
+
+        Sis("Mary", bro_id=[tom.id, dick.id]).create()   # tied to Tom, Dick
+        Sis("Sue", bro_id=[tom.id]).create()             # tied to Tom
+        Sis("Ann", bro_id=[dick.id, harry.id]).create()  # tied to Dick, Harry
+
+        # has: tied to that one brother
+        self.assertEqual(sorted(Sis.many(bro_id__has=tom.id).name), ["Mary", "Sue"])
+        self.assertEqual(Sis.many(bro_id__has=harry.id).name, ["Ann"])
+        self.assertEqual(len(Sis.many(bro_id__has=999)), 0)
+
+        # any: tied to at least one of them
+        self.assertEqual(sorted(Sis.many(bro_id__any=[tom.id, harry.id]).name), ["Ann", "Mary", "Sue"])
+        self.assertEqual(Sis.many(bro_id__any=[harry.id]).name, ["Ann"])
+        self.assertEqual(len(Sis.many(bro_id__any=[999])), 0)
+
+        # all: tied to every one of them
+        self.assertEqual(Sis.many(bro_id__all=[tom.id, dick.id]).name, ["Mary"])
+        self.assertEqual(sorted(Sis.many(bro_id__all=[dick.id]).name), ["Ann", "Mary"])
+        self.assertEqual(len(Sis.many(bro_id__all=[tom.id, harry.id])), 0)
+
+        # all must de-dupe the requested list (a repeated value can't change the result)
+        self.assertEqual(sorted(Sis.many(bro_id__all=[dick.id, dick.id]).name), ["Ann", "Mary"])
+
+        # negation
+        self.assertEqual(Sis.many(bro_id__not_has=tom.id).name, ["Ann"])
+        self.assertEqual(sorted(Sis.many(bro_id__not_any=[harry.id]).name), ["Mary", "Sue"])
+
+        # symmetric: brothers queried by their tied sisters
+        jane = Sis("Jane").create()
+        joan = Sis("Joan").create()
+        Bro("Bob", sis_id=[jane.id, joan.id]).create()   # tied to Jane, Joan
+        Bro("Bill", sis_id=[jane.id]).create()           # tied to Jane
+
+        self.assertEqual(sorted(Bro.many(sis_id__has=jane.id).name), ["Bill", "Bob"])
+        self.assertEqual(Bro.many(sis_id__all=[jane.id, joan.id]).name, ["Bob"])
+        self.assertEqual(Bro.many(sis_id__any=[joan.id]).name, ["Bob"])
+
     def test_titles(self):
 
         self.source.execute(Unit.define())
@@ -801,6 +924,9 @@ LIMIT %s""")
         self.source.execute(Case.define())
         self.source.execute(Meta.define())
         self.source.execute(Net.define())
+        self.source.execute(Sis.define())
+        self.source.execute(Bro.define())
+        self.source.execute(SisBro.define())
 
         Unit("people").create().test.add("stuff").add("things").create()
 
@@ -837,6 +963,11 @@ LIMIT %s""")
         self.assertEqual(Net.many().titles().titles, {
             1: ["1.2.3.4"]
         })
+
+        tom = Bro("Tom").create()
+        Sis("Sally", bro_id=[tom.id]).create()
+
+        self.assertEqual(len(Sis.many(bro_id=[tom.id]).titles().ids), 1)
 
     def test_update_field(self):
 
@@ -901,6 +1032,9 @@ LIMIT %s""")
         self.source.execute(Case.define())
         self.source.execute(Meta.define())
         self.source.execute(Net.define())
+        self.source.execute(Sis.define())
+        self.source.execute(Bro.define())
+        self.source.execute(SisBro.define())
 
         Unit([["people"], ["stuff"]]).create()
 
@@ -943,6 +1077,31 @@ LIMIT %s""")
         self.assertEqual(Net.one(ping.id).ip.compressed, "13.14.15.16")
         self.assertEqual(Net.one(pong.id).ip.compressed, "5.6.7.8")
 
+        Sis("Sally").create()
+        bro = Bro("Harry").create()
+        Sis.many(name="Sally").set(bro_id=[bro.id]).update()
+
+        sis = Sis.one(name="Sally")
+
+        self.assertEqual(Bro.one(name="Harry").sis.id, [sis.id])
+
+        tom = Bro("Tom").create()
+        dick = Bro("Dick").create()
+
+        dot = Sis("Dot").create()
+        nikki = Sis("Nikki").create()
+
+        tom.sis_id = [nikki.id, dot.id]
+        dot.bro_id = [tom.id, dick.id]
+
+        tom.update()
+        dot.update()
+
+        self.assertEqual(Bro.one(name="Tom").sis.id, [dot.id, nikki.id])
+        self.assertEqual(Sis.one(name="Dot").bro.id, [dick.id, tom.id])
+        self.assertEqual(Bro.one(name="Dick").sis.id, [dot.id])
+        self.assertEqual(Sis.one(name="Nikki").bro.id, [tom.id])
+
     def test_delete_query(self):
 
         self.source.execute(Unit.define())
@@ -974,6 +1133,9 @@ LIMIT %s""")
         self.source.execute(Test.define())
         self.source.execute(Case.define())
         self.source.execute(Plain.define())
+        self.source.execute(Sis.define())
+        self.source.execute(Bro.define())
+        self.source.execute(SisBro.define())
 
         unit = Unit("people")
         unit.test.add("stuff").add("things")
@@ -991,6 +1153,34 @@ LIMIT %s""")
 
         plain = Plain(0, "nope").create()
         self.assertRaisesRegex(relations.ModelError, "plain: nothing to delete from", plain.delete)
+
+        Sis("Sally").create()
+        bro = Bro("Harry").create()
+        Sis.many(name="Sally").set(bro_id=[bro.id]).update()
+
+        Sis.many(name="Sally").delete()
+
+        self.assertEqual(Bro.one(name="Harry").sis.id, [])
+        self.assertEqual(SisBro.many().count(), 0)
+
+        tom = Bro("Tom").create()
+        dick = Bro("Dick").create()
+
+        dot = Sis("Dot").create()
+        nikki = Sis("Nikki").create()
+
+        tom.sis_id = [nikki.id, dot.id]
+        dot.bro_id = [tom.id, dick.id]
+
+        tom.update()
+        dot.update()
+
+        dick.one(name="Dick").retrieve().delete()
+        nikki.one(name="Nikki").retrieve().delete()
+
+        self.assertEqual(Bro.one(name="Tom").sis.id, [dot.id])
+        self.assertEqual(Sis.one(name="Dot").bro.id, [tom.id])
+        self.assertEqual(SisBro.many().count(), 1)
 
     def test_definition(self):
 
