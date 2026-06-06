@@ -15,7 +15,7 @@ import relations
 import relations_sql
 import relations_postgresql
 
-class Source(relations.Source): # pylint: disable=too-many-public-methods
+class Source(relations_sql.SOURCE, relations.Source): # pylint: disable=too-many-public-methods
     """
     PsycoPg2 Source
     """
@@ -269,6 +269,7 @@ class Source(relations.Source): # pylint: disable=too-many-public-methods
         query = self.SELECT(self.AS("total", self.SQL("COUNT(*)"))).FROM(self.TABLE_NAME(model.STORE, schema=model.SCHEMA))
 
         model._collate()
+        self.collate_ties_query(model, query)
         self.retrieve_record(model._record, query)
         self.like(model, query)
 
