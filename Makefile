@@ -1,10 +1,10 @@
 ACCOUNT=gaf3
 IMAGE=python-relations-psycopg2
 INSTALL=python:3.8.5-alpine3.12
-VERSION?=0.6.10
-NETWORK=relations.io
+VERSION?=0.6.11
+NETWORK?=relations.io
 POSTGRES_IMAGE=postgres:12.4-alpine
-POSTGRES_HOST=$(ACCOUNT)-$(IMAGE)-postgres
+POSTGRES_HOST=$(ACCOUNT)-$(IMAGE)-postgres-$(NETWORK)
 DEBUG_PORT=5678
 TTY=$(shell if tty -s; then echo "-it"; fi)
 VOLUMES=-v ${PWD}/lib:/opt/service/lib \
@@ -42,7 +42,7 @@ debug: postgres
 	docker run $(TTY) --network=$(NETWORK) $(VOLUMES) $(ENVIRONMENT) -p 127.0.0.1:$(DEBUG_PORT):5678 $(ACCOUNT)/$(IMAGE):$(VERSION) sh -c "python -m ptvsd --host 0.0.0.0 --port 5678 --wait -m unittest discover -v test"
 
 test: postgres
-	docker run $(TTY) --network=$(NETWORK) $(VOLUMES) $(ENVIRONMENT) $(ACCOUNT)/$(IMAGE):$(VERSION) sh -c "coverage run -m unittest discover -v test && coverage report -m --include 'lib/*.py'"
+	docker run $(TTY) --rm --network=$(NETWORK) $(VOLUMES) $(ENVIRONMENT) $(ACCOUNT)/$(IMAGE):$(VERSION) sh -c "coverage run -m unittest discover -v test && coverage report -m --include 'lib/*.py'" ; status=$$? ; docker rm --force $(POSTGRES_HOST) ; [ "$(NETWORK)" = "relations.io" ] || docker network rm $(NETWORK) ; exit $$status
 
 lint:
 	docker run $(TTY) $(VOLUMES) $(ENVIRONMENT) $(ACCOUNT)/$(IMAGE):$(VERSION) sh -c "pylint --rcfile=.pylintrc lib/"
