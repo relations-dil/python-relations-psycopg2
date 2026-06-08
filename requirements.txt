@@ -1,5 +1,5 @@
-relations-dil==0.6.14
-relations-sql==0.6.8
+relations-dil @ git+https://github.com/relations-dil/python-relations@aa309087789d4b7ed459676c4343f61bb95a4af5
+relations-sql @ git+https://github.com/relations-dil/python-relations-sql@7d8be2cfa9921a3321a123fa668640002b031f9e
 relations-postgresql==0.6.3
 psycopg2==2.8.6
 ptvsd==4.3.2

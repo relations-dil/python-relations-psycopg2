@@ -30,7 +30,9 @@ class Source(relations_sql.SOURCE, relations.Source): # pylint: disable=too-many
     OP = relations_postgresql.OP
 
     AS = relations_postgresql.AS
+    OPTIONS = relations_postgresql.OPTIONS
     FIELDS = relations_postgresql.FIELDS
+    COLUMN_NAME = relations_postgresql.COLUMN_NAME
     TABLE = relations_postgresql.TABLE
     TABLE_NAME = relations_postgresql.TABLE_NAME
 
@@ -273,6 +275,11 @@ class Source(relations_sql.SOURCE, relations.Source): # pylint: disable=too-many
         self.retrieve_record(model._record, query)
         self.like(model, query)
 
+        # a sibling-attribute flat join repeats a model tied to several matching siblings, so
+        # count the distinct model id instead of the joined rows
+        if getattr(model, "_distinct", False):
+            query.FIELDS = self.FIELDS(self.AS("total", self.SQL(f"COUNT(DISTINCT {model.STORE}.{model._id})")))
+
         return query
 
     def retrieve_query(self, model):
@@ -282,7 +289,12 @@ class Source(relations_sql.SOURCE, relations.Source): # pylint: disable=too-many
 
         query = self.count_query(model)
 
-        query.FIELDS = self.FIELDS("*")
+        # honor the flat-join DISTINCT marker: dedupe the model rows the join multiplied
+        if getattr(model, "_distinct", False):
+            query.OPTIONS = self.OPTIONS("DISTINCT")
+            query.FIELDS = self.FIELDS(self.COLUMN_NAME("*", table=model.STORE))
+        else:
+            query.FIELDS = self.FIELDS("*")
 
         self.sort(model, query)
         self.limit(model, query)

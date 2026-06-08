@@ -917,6 +917,52 @@ LIMIT %s""")
         self.assertEqual(Bro.many(sis_id__all=[jane.id, joan.id]).name, ["Bob"])
         self.assertEqual(Bro.many(sis_id__any=[joan.id]).name, ["Bob"])
 
+    def test_retrieve_ties_attr(self):
+
+        self.source.execute(Sis.define())
+        self.source.execute(Bro.define())
+        self.source.execute(SisBro.define())
+
+        # M2M attribute filtering: a flat join through the tie table filters on the sibling's
+        # own field. Existence semantics, with the sibling's normal field operators.
+
+        tom = Bro("Tom").create()
+        dick = Bro("Dick").create()
+        harry = Bro("Harry").create()
+
+        Sis("Mary", bro_id=[tom.id, dick.id]).create()   # tied to Tom, Dick
+        Sis("Sue", bro_id=[tom.id]).create()             # tied to Tom
+        Sis("Ann", bro_id=[dick.id, harry.id]).create()  # tied to Dick, Harry
+
+        # tied to a brother with that name
+        self.assertEqual(sorted(Sis.many(bro__name="Tom").name), ["Mary", "Sue"])
+        self.assertEqual(Sis.many(bro__name="Harry").name, ["Ann"])
+        self.assertEqual(len(Sis.many(bro__name="Ghost")), 0)
+
+        # field operators land on the sibling: like
+        self.assertEqual(Sis.many(bro__name__like="arr").name, ["Ann"])
+
+        # DISTINCT: Mary is tied to BOTH Tom and Dick, so an "in" join would match her twice;
+        # she must appear once (retrieve) and count once
+        self.assertEqual(sorted(Sis.many(bro__name__in=["Tom", "Dick"]).name), ["Ann", "Mary", "Sue"])
+        self.assertEqual(Sis.many(bro__name__in=["Tom", "Dick"]).count(), 3)
+
+        # negation is field-level: a tied non-Tom exists (Mary stays via Dick)
+        self.assertEqual(sorted(Sis.many(bro__name__not_in=["Tom"]).name), ["Ann", "Mary"])
+
+        # criteria on the same relation filter the SAME tied brother
+        self.assertEqual(Sis.many(bro__name="Dick", bro__id=harry.id).name, [])
+        self.assertEqual(sorted(Sis.many(bro__name="Dick", bro__id=dick.id).name), ["Ann", "Mary"])
+
+        # symmetric: brothers filtered by a tied sister's name
+        jane = Sis("Jane").create()
+        joan = Sis("Joan").create()
+        Bro("Bab", sis_id=[jane.id, joan.id]).create()   # tied to Jane, Joan
+        Bro("Bil", sis_id=[jane.id]).create()            # tied to Jane
+
+        self.assertEqual(sorted(Bro.many(sis__name="Jane").name), ["Bab", "Bil"])
+        self.assertEqual(Bro.many(sis__name__in=["Joan"]).name, ["Bab"])
+
     def test_titles(self):
 
         self.source.execute(Unit.define())
