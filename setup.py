@@ -7,7 +7,7 @@ with open("README.md", "r") as readme_file:
 
 setup(
     name="relations-psycopg2",
-    version="0.6.11",
+    version="0.6.12",
     package_dir = {'': 'lib'},
     py_modules = [
         'relations_psycopg2'
