@@ -101,6 +101,17 @@ class SisBro(SourceModel):
 
 relations.ManyToMany(Sis, Bro, SisBro)
 
+class Owner(SourceModel):
+    id = int
+    name = str
+
+class Pet(SourceModel):
+    id = int
+    name = str
+    what = dict
+
+relations.OneToMany(Owner, Pet, child_inject="what")
+
 class TestSource(unittest.TestCase):
 
     maxDiff = None
@@ -218,6 +229,16 @@ CREATE UNIQUE INDEX "simple_name" ON "test_source"."simple" ("name");
 
         self.source.execute(self.source.define(Simple.thy().define()))
 
+        # an injected key isn't a column, it's stored in the dict field
+
+        self.source.execute(Owner.define())
+        self.source.execute(Pet.define())
+
+        cursor = self.source.connection.cursor()
+        cursor.execute("SELECT column_name FROM information_schema.columns WHERE table_schema='test_source' AND table_name='pet' ORDER BY ordinal_position")
+        self.assertEqual([column["column_name"] for column in cursor.fetchall()], ["id", "name", "what"])
+        cursor.close()
+
     def test_create_query(self):
 
         query = Simple("sure").query()
@@ -323,6 +344,27 @@ CREATE UNIQUE INDEX "simple_name" ON "test_source"."simple" ("name");
 
         cursor.close()
 
+        # an injected key is stored in the dict field, whether there's a parent or not
+
+        self.source.execute(Owner.define())
+        self.source.execute(Pet.define())
+
+        owner = Owner("pat")
+        owner.pet.add("rex")
+        owner.create()
+
+        stray = Pet("stray").create()
+
+        cursor = self.source.connection.cursor()
+        cursor.execute("SELECT * FROM test_source.pet ORDER BY name")
+        rows = [self.source.values_retrieve(stray, row) for row in cursor.fetchall()]
+        cursor.close()
+
+        self.assertEqual(rows, [
+            {"id": 1, "name": "rex", "what": {"relations": {"owner": {"id": owner.id}}}},
+            {"id": 2, "name": "stray", "what": {}}
+        ])
+
     def test_retrieve_field(self):
 
         field = relations.Field(int, name="id")
@@ -360,6 +402,37 @@ CREATE UNIQUE INDEX "simple_name" ON "test_source"."simple" ("name");
         query.generate()
         self.assertEqual(query.sql, """SELECT WHERE "things__for__0____1"=%s""")
         self.assertEqual(query.args, ['yes'])
+
+        # an injected key is looked up by its path in the field it's stored in
+
+        record = copy.deepcopy(Pet.thy()._fields)
+        field = record._names["owner_id"]
+        field.filter(1)
+        query = self.source.SELECT()
+        self.source.retrieve_field(field, query, record)
+        query.generate()
+        self.assertEqual(query.sql, """SELECT WHERE ("what"#>>%s)::JSONB=(%s)::JSONB""")
+        self.assertEqual(query.args, ['{relations,owner,id}', '1'])
+
+        record = copy.deepcopy(Pet.thy()._fields)
+        field = record._names["owner_id"]
+        field.filter([1, 2], "in")
+        query = self.source.SELECT()
+        self.source.retrieve_field(field, query, record)
+        query.generate()
+        self.assertEqual(query.sql, """SELECT WHERE ("what"#>>%s)::JSONB IN ((%s)::JSONB,(%s)::JSONB)""")
+        self.assertEqual(query.args, ['{relations,owner,id}', '1', '2'])
+
+    def test_retrieve_record(self):
+
+        record = copy.deepcopy(Pet.thy()._fields)
+        record._names["name"].filter("rex")
+        record._names["owner_id"].filter(1)
+        query = self.source.SELECT()
+        self.source.retrieve_record(record, query)
+        query.generate()
+        self.assertEqual(query.sql, """SELECT WHERE "name"=%s AND ("what"#>>%s)::JSONB=(%s)::JSONB""")
+        self.assertEqual(query.args, ["rex", "{relations,owner,id}", "1"])
 
     def test_like(self):
 
@@ -447,6 +520,16 @@ CREATE UNIQUE INDEX "simple_name" ON "test_source"."simple" ("name");
         self.assertEqual(query.sql, """SELECT ORDER BY "id" DESC""")
         self.assertEqual(query.args, [])
         self.assertIsNone(unit._sort)
+
+        # an injected key sorts by its path in the field it's stored in
+
+        pet = Pet.many()
+        pet._sort = ['-owner_id']
+        query = self.source.SELECT()
+        self.source.sort(pet, query)
+        query.generate()
+        self.assertEqual(query.sql, """SELECT ORDER BY "what"#>>%s DESC""")
+        self.assertEqual(query.args, ['{relations,owner,id}'])
 
     def test_limit(self):
 
@@ -637,6 +720,19 @@ LIMIT %s""")
 
         self.assertEqual(Sis.many(bro_id=[tom.id]).count(), 1)
         self.assertEqual(Sis.many(bro_id=[999]).count(), 0)
+
+        # an injected key counts like any other
+
+        self.source.execute(Owner.define())
+        self.source.execute(Pet.define())
+
+        pat = Owner("pat").create()
+
+        Pet([{"name": "rex", "owner_id": pat.id}, {"name": "stray"}]).create()
+
+        self.assertEqual(Pet.many().count(), 2)
+        self.assertEqual(Pet.many(owner_id=pat.id).count(), 1)
+        self.assertEqual(Pet.many(owner_id=99).count(), 0)
 
     def test_values_retrieve(self):
 
@@ -866,6 +962,37 @@ LIMIT %s""")
         self.assertEqual(Bro.many(sis_id=[dot.id])[0].name, "Harry")
 
         self.assertEqual(len(Sis.many(bro_id=[999])), 0)
+
+        # an injected key retrieves, filters and relates like a column
+
+        self.source.execute(Owner.define())
+        self.source.execute(Pet.define())
+
+        pat = Owner("pat").create()
+        sam = Owner("sam").create()
+
+        Pet([
+            {"name": "rex", "owner_id": pat.id},
+            {"name": "fido", "owner_id": sam.id},
+            {"name": "spot", "owner_id": pat.id},
+            {"name": "stray"}
+        ]).create()
+
+        self.assertEqual(Pet.many(owner_id=pat.id).name, ["rex", "spot"])
+        self.assertEqual(Pet.many(owner_id__in=[pat.id, sam.id]).name, ["fido", "rex", "spot"])
+        self.assertEqual(Pet.many(owner_id__null=True).name, ["stray"])
+        self.assertEqual(Pet.many(owner_id=99).name, [])
+
+        self.assertEqual(Pet.one(name="rex").owner.name, "pat")
+        self.assertIsNone(Pet.one(name="stray").owner)
+
+        self.assertEqual(Owner.one(pat.id).pet.name, ["rex", "spot"])
+        self.assertEqual(Owner.one(name="pat").pet.name, ["rex", "spot"])
+
+        self.assertEqual(Pet.many(owner__name="pat").name, ["rex", "spot"])
+        self.assertEqual(Owner.many(pet__name="fido").name, ["sam"])
+
+        self.assertEqual(Pet.many(like="re").name, ["rex"])
 
     def test_retrieve_ties_query(self):
 
@@ -1148,6 +1275,34 @@ LIMIT %s""")
         self.assertEqual(Bro.one(name="Dick").sis.id, [dot.id])
         self.assertEqual(Sis.one(name="Nikki").bro.id, [tom.id])
 
+        # an injected key updates like a column, but not in mass
+
+        self.source.execute(Owner.define())
+        self.source.execute(Pet.define())
+
+        pat = Owner("pat").create()
+        sam = Owner("sam").create()
+
+        Pet([{"name": "rex", "owner_id": pat.id}, {"name": "fido", "owner_id": sam.id}]).create()
+
+        pet = Pet.one(name="rex").retrieve()
+        pet.owner_id = sam.id
+
+        self.assertEqual(pet.update(), 1)
+        self.assertEqual(Pet.one(name="rex").owner_id, sam.id)
+        self.assertEqual(Pet.many(owner_id=sam.id).name, ["fido", "rex"])
+
+        pet.owner_id = None
+
+        self.assertEqual(pet.update(), 1)
+        self.assertIsNone(Pet.one(name="rex").owner_id)
+        self.assertEqual(Pet.many(owner_id__null=True).name, ["rex"])
+
+        self.assertEqual(Pet.one(name="rex").set(owner_id=pat.id).update(), 1)
+        self.assertEqual(Pet.one(name="rex").owner_id, pat.id)
+
+        self.assertRaisesRegex(relations.FieldError, "no mass update with inject", Pet.many(name="rex").set(owner_id=sam.id).update)
+
     def test_delete_query(self):
 
         self.source.execute(Unit.define())
@@ -1227,6 +1382,18 @@ LIMIT %s""")
         self.assertEqual(Bro.one(name="Tom").sis.id, [dot.id])
         self.assertEqual(Sis.one(name="Dot").bro.id, [tom.id])
         self.assertEqual(SisBro.many().count(), 1)
+
+        # an injected key deletes like any other
+
+        self.source.execute(Owner.define())
+        self.source.execute(Pet.define())
+
+        pat = Owner("pat").create()
+
+        Pet([{"name": "rex", "owner_id": pat.id}, {"name": "spot", "owner_id": pat.id}, {"name": "stray"}]).create()
+
+        self.assertEqual(Pet.many(owner_id=pat.id).delete(), 2)
+        self.assertEqual(Pet.many().name, ["stray"])
 
     def test_definition(self):
 

@@ -190,14 +190,30 @@ class Source(relations_sql.SOURCE, relations.Source): # pylint: disable=too-many
 
         return model
 
-    def retrieve_field(self, field, query):
+    def retrieve_record(self, record, query):
         """
-        Adds where caluse to query
+        Adds where clauses to query for all the fields in the record
+        """
+
+        for field in record._order:
+            self.retrieve_field(field, query, record)
+
+    def retrieve_field(self, field, query, record=None):
+        """
+        Adds where caluse to query, an injected field is looked up in the field it's stored in
         """
 
         for operator, value in (field.criteria or {}).items():
-            name = f"{field.store}__{operator}"
-            extracted = operator.rsplit("__", 1)[0] in (field.extract or {})
+
+            if field.inject:
+                stored, path = field.inject.split("__", 1)
+                stored = record._names[stored]
+                name = f"{stored.store}__{path}__{operator}"
+                extracted = path in (stored.extract or {})
+            else:
+                name = f"{field.store}__{operator}"
+                extracted = operator.rsplit("__", 1)[0] in (field.extract or {})
+
             query.WHERE(self.OP(name, value, EXTRACTED=extracted))
 
     def like(self, model, query):
@@ -247,7 +263,17 @@ class Source(relations_sql.SOURCE, relations.Source): # pylint: disable=too-many
         """
 
         for field in (model._sort or model._order or []):
-            query.ORDER_BY(**{field[1:]: (self.ASC if field[0] == "+" else self.DESC)})
+
+            name = field[1:]
+            field_name, path = (name.split("__", 1) + [None])[:2]
+
+            # an injected field is sorted by its path in the field it's stored in
+
+            if model._fields._names[field_name].inject:
+                stored, injected = model._fields._names[field_name].inject.split("__", 1)
+                name = f"{model._fields._names[stored].store}__{injected}" + (f"__{path}" if path else "")
+
+            query.ORDER_BY(**{name: (self.ASC if field[0] == "+" else self.DESC)})
 
         model._sort = None
 

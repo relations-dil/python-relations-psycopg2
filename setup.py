@@ -1,20 +1,27 @@
 #!/usr/bin/env python
 
+import os
 from setuptools import setup
 
 with open("README.md", "r") as readme_file:
     long_description = readme_file.read()
 
+version = os.environ.get("BUILD_VERSION")
+
+if version is None:
+    with open("VERSION", "r") as version_file:
+        version = version_file.read().strip()
+
 setup(
     name="relations-psycopg2",
-    version="0.6.12",
+    version=version,
     package_dir = {'': 'lib'},
     py_modules = [
         'relations_psycopg2'
     ],
     install_requires=[
         'psycopg2==2.8.6',
-        'relations-dil>=0.6.14',
+        'relations-dil>=0.6.16',
         'relations-postgresql>=0.6.3'
     ],
     url="https://github.com/relations-dil/python-relations-psycopg2",
