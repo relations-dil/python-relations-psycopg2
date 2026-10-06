@@ -21,7 +21,7 @@ setup(
     ],
     install_requires=[
         'psycopg2==2.8.6',
-        'relations-dil>=0.6.14',
+        'relations-dil>=0.6.16',
         'relations-postgresql>=0.6.3'
     ],
     url="https://github.com/relations-dil/python-relations-psycopg2",
