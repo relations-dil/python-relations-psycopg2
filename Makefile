@@ -1,7 +1,7 @@
 ACCOUNT=gaf3
 IMAGE=python-relations-psycopg2
 INSTALL=python:3.8.5-alpine3.12
-VERSION?=0.6.12
+VERSION?=$(shell cat VERSION)
 NETWORK?=relations.io
 POSTGRES_IMAGE=postgres:12.4-alpine
 POSTGRES_HOST=$(ACCOUNT)-$(IMAGE)-postgres-$(NETWORK)
@@ -11,6 +11,7 @@ VOLUMES=-v ${PWD}/lib:/opt/service/lib \
 		-v ${PWD}/test:/opt/service/test \
 		-v ${PWD}/postgres.sh:/opt/service/postgres.sh \
 		-v ${PWD}/.pylintrc:/opt/service/.pylintrc \
+		-v ${PWD}/VERSION:/opt/service/VERSION \
 		-v ${PWD}/setup.py:/opt/service/setup.py
 ENVIRONMENT=-e POSTGRES_HOST=$(POSTGRES_HOST) \
 			-e POSTGRES_PORT=5432 \
@@ -63,10 +64,10 @@ untag:
 
 testpypi:
 	docker run $(TTY) $(VOLUMES) $(PYPI) gaf3/pypi sh -c "cd /opt/service && \
-	python -m build && \
+	BUILD_VERSION='$(VERSION)' python -m build && \
 	python -m twine upload -r testpypi --config-file=.pypirc dist/*"
 
 pypi:
 	docker run $(TTY) $(VOLUMES) $(PYPI) gaf3/pypi sh -c "cd /opt/service && \
-	python -m build && \
+	BUILD_VERSION='$(VERSION)' python -m build && \
 	python -m twine upload --config-file=.pypirc dist/*"
