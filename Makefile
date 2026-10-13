@@ -23,51 +23,52 @@ PYPI=-v ${PWD}/LICENSE.txt:/opt/service/LICENSE.txt \
 	-v ${PWD}/PYPI.md:/opt/service/README.md \
 	-v ${HOME}/.pypirc:/opt/service/.pypirc
 
-.PHONY: build network postgres shell debug test lint setup tag untag testpypi pypi new version release-check release dist-check testpypi-verify test-release
+.PHONY: build network postgres shell debug test lint setup tag untag testpypi pypi new version release-check release dist-check testpypi-verify test-release help
+.DEFAULT_GOAL := help
 
-build:
+build: ## Builds the docker image
 	docker build . -t $(ACCOUNT)/$(IMAGE):$(VERSION)
 
-network:
+network: ## Creates the docker network the tests use
 	-docker network create $(NETWORK)
 
-postgres: network
+postgres: network ## Starts the PostgreSQL container the tests use
 	-docker rm --force $(POSTGRES_HOST)
 	docker run -d --network=$(NETWORK) -h $(POSTGRES_HOST) --name=$(POSTGRES_HOST) -e POSTGRES_HOST_AUTH_METHOD='trust' $(POSTGRES_IMAGE)
 	docker run $(TTY) --rm --network=$(NETWORK) $(VOLUMES) $(ENVIRONMENT) $(ACCOUNT)/$(IMAGE):$(VERSION) sh -c "./postgres.sh"
 
-shell: postgres
+shell: postgres ## Opens a shell in the container
 	docker run $(TTY) --network=$(NETWORK) $(VOLUMES) $(ENVIRONMENT) -p 127.0.0.1:$(DEBUG_PORT):5678 $(ACCOUNT)/$(IMAGE):$(VERSION) sh
 
-debug: postgres
+debug: postgres ## Runs the tests under the debugger on port 5678
 	docker run $(TTY) --network=$(NETWORK) $(VOLUMES) $(ENVIRONMENT) -p 127.0.0.1:$(DEBUG_PORT):5678 $(ACCOUNT)/$(IMAGE):$(VERSION) sh -c "python -m ptvsd --host 0.0.0.0 --port 5678 --wait -m unittest discover -v test"
 
-test: postgres
+test: postgres ## Runs the tests with coverage
 	docker run $(TTY) --rm --network=$(NETWORK) $(VOLUMES) $(ENVIRONMENT) $(ACCOUNT)/$(IMAGE):$(VERSION) sh -c "coverage run -m unittest discover -v test && coverage report -m --include 'lib/*.py'" ; status=$$? ; docker rm --force $(POSTGRES_HOST) ; [ "$(NETWORK)" = "relations.io" ] || docker network rm $(NETWORK) ; exit $$status
 
-lint:
+lint: ## Runs pylint
 	docker run $(TTY) $(VOLUMES) $(ENVIRONMENT) $(ACCOUNT)/$(IMAGE):$(VERSION) sh -c "pylint --rcfile=.pylintrc lib/"
 
-setup:
+setup: ## Checks it installs and its modules run on the oldest python
 	docker run $(TTY) $(VOLUMES) $(PYPI) $(INSTALL) sh -c "cp -r /opt/service /opt/install && cd /opt/install/ && \
 	apk update && apk add gcc libc-dev make libpq postgresql-dev build-base && \
 	python setup.py install && \
 	python -m relations_psycopg2"
 
-tag:
+tag: ## Tags the version and pushes the tag
 	-git tag -a $(VERSION) -m "Version $(VERSION)"
 	git push origin --tags
 
-untag:
+untag: ## Removes the version's tag
 	-git tag -d $(VERSION)
 	git push origin ":refs/tags/$(VERSION)"
 
-testpypi:
+testpypi: ## Uploads the version to TestPyPI
 	docker run $(TTY) $(VOLUMES) $(PYPI) python:3 sh -c "pip install -q --root-user-action=ignore build twine && cd /opt/service && \
 	BUILD_VERSION='$(VERSION)' python -m build && \
 	python -m twine upload -r testpypi --config-file=.pypirc dist/*"
 
-pypi:
+pypi: ## Uploads the version to PyPI
 	docker run $(TTY) $(VOLUMES) $(PYPI) python:3 sh -c "pip install -q --root-user-action=ignore build twine && cd /opt/service && \
 	BUILD_VERSION='$(VERSION)' python -m build && \
 	python -m twine upload --config-file=.pypirc dist/*"
@@ -77,26 +78,29 @@ pypi:
 V?=+0.0.1
 B?=
 
-new:
+new: ## Starts a release: next version, branch, VERSION, changelog (V=+0.0.1|+0.1|+1|x.y.z, B=name)
 	@sh scripts/new.sh "$(V)" "$(B)"
 
-version:
+version: ## Sets VERSION (V=+0.0.1|+0.1|+1|x.y.z)
 	@sh scripts/version.sh write "$(V)"
 
-release-check:
+release-check: ## Says where the release is up to and what would stop it
 	@sh scripts/release-check.sh
 
-release:
+release: ## Does what's left of the release: checks, TestPyPI, PyPI, the tag
 	@sh scripts/release.sh
 
-dist-check:
+dist-check: ## Builds the distributions and runs twine check
 	docker run --rm $(TTY) $(VOLUMES) $(PYPI) python:3 sh -c "pip install -q --root-user-action=ignore build twine && cd /opt/service && \
 	BUILD_VERSION='$(VERSION)' python -m build && \
 	python -m twine check dist/*"
 
-testpypi-verify:
+testpypi-verify: ## Installs the version from TestPyPI in a clean container
 	@sh scripts/testpypi-verify.sh
 
 # Tests the release scripts against a throwaway repo and fake indexes, nothing real is touched
-test-release:
+test-release: ## Tests the release scripts against a throwaway repo and fake indexes
 	docker run --rm $(TTY) -v ${PWD}/scripts:/opt/scripts python:3 sh /opt/scripts/test-release.sh
+
+help: ## Lists the targets
+	@awk -F ':.*## ' '/^[a-z-]+:.*## /{printf "%-16s %s\n", $$1, $$2}' $(MAKEFILE_LIST)
