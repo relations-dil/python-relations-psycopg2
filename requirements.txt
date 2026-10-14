@@ -1,4 +1,4 @@
-relations-dil==0.6.18
+relations-dil==0.6.19
 relations-sql==0.6.10
 relations-postgresql==0.6.4
 psycopg2==2.9.9

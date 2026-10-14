@@ -21,6 +21,12 @@ Shipping as 0.6.13, with relations-dil 0.6.16.
 ### Changed
 - A key stored in a dict field (`child_inject` in relations-dil 0.6.16) is queried by its path in that field, instead of a column that doesn't exist: new `retrieve_record` hands the record to `retrieve_field`, which looks an injected field up in the field it's stored in (as the extracted column if it's been extracted), and `sort` does the same. Counting, retrieving, updating and deleting by the key work, and mass updates through it are refused.
 
+## [0.6.16] - 2026-10-14
+
+### Changed
+- A duplicate (Postgres sqlstate 23505, which a repeated primary key is too) raises `relations.UniqueError` from create and update, with the driver's `psycopg2.errors.UniqueViolation` as its cause, through the new `Source.write`. Any other integrity error is left as it is. The transaction stays the caller's: outside autocommit it has to be rolled back before a retry, as with any psycopg2 error.
+- "none retrieved" and "more than one retrieved" are `relations.NotFoundError` and `relations.MultipleError` (same messages, still `ModelError`s). Needs relations-dil 0.6.19 (relations-dil/python-relations#78).
+
 ## [0.6.15] - 2026-10-14
 
 ### Fixed
