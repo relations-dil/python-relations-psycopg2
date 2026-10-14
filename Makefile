@@ -1,6 +1,5 @@
 ACCOUNT=gaf3
 IMAGE=python-relations-psycopg2
-INSTALL=python:3.8.5-alpine3.12
 VERSION?=$(shell cat VERSION)
 NETWORK?=relations.io
 POSTGRES_IMAGE=postgres:12.4-alpine
@@ -49,10 +48,9 @@ test: postgres ## Runs the tests with coverage
 lint: ## Runs pylint
 	docker run --rm $(TTY) $(VOLUMES) $(ENVIRONMENT) $(ACCOUNT)/$(IMAGE):$(VERSION) sh -c "pylint --rcfile=.pylintrc lib/"
 
-setup: ## Checks it installs and its modules run on the oldest python
-	docker run --rm $(TTY) $(VOLUMES) $(PYPI) $(INSTALL) sh -c "cp -r /opt/service /opt/install && cd /opt/install/ && \
-	apk update && apk add gcc libc-dev make libpq postgresql-dev build-base && \
-	python setup.py install && \
+setup: ## Checks it installs and its modules run on the latest python
+	docker run --rm $(TTY) $(VOLUMES) $(PYPI) python:3 sh -c "cp -r /opt/service /opt/install && cd /opt/install/ && \
+	pip install -q --root-user-action=ignore . && \
 	python -m relations_psycopg2"
 
 tag: ## Tags the version and pushes the tag
