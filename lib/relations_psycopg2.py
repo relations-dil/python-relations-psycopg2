@@ -137,6 +137,21 @@ class Source(relations_sql.SOURCE, relations.Source): # pylint: disable=too-many
         return query
 
     @staticmethod
+    def write(cursor, model, sql, args):
+        """
+        Executes a write, a duplicate (23505) is relations' unique error, with the driver's error as its cause.
+        The transaction is the caller's: as with any psycopg2 error, outside autocommit it has to be rolled back
+        before a retry.
+        """
+
+        try:
+            cursor.execute(sql, args)
+        except psycopg2.IntegrityError as exception:
+            if exception.pgcode == "23505":
+                raise relations.UniqueError(model, str(exception).strip()) from exception
+            raise
+
+    @staticmethod
     def create_id(cursor, model, query):
         """
         Inserts a single record and sets the id
@@ -145,7 +160,7 @@ class Source(relations_sql.SOURCE, relations.Source): # pylint: disable=too-many
         store = model._fields._names[model._id].store
 
         query.generate()
-        cursor.execute("""%s RETURNING %s""" % (query.sql, query.quote(store)), tuple(query.args))
+        Source.write(cursor, model, """%s RETURNING %s""" % (query.sql, query.quote(store)), tuple(query.args))
 
         model[model._id] = cursor.fetchone()[store]
 
@@ -165,7 +180,7 @@ class Source(relations_sql.SOURCE, relations.Source): # pylint: disable=too-many
         else:
             create_query = query or self.create_query(model)
             create_query.generate()
-            cursor.execute(create_query.sql, tuple(create_query.args))
+            self.write(cursor, model, create_query.sql, tuple(create_query.args))
 
         cursor.close()
 
@@ -384,14 +399,14 @@ class Source(relations_sql.SOURCE, relations.Source): # pylint: disable=too-many
         cursor.execute(query.sql, tuple(query.args))
 
         if model._mode == "one" and cursor.rowcount > 1:
-            raise relations.ModelError(model, "more than one retrieved")
+            raise relations.MultipleError(model, "more than one retrieved")
 
         if model._mode == "one" and model._role != "child":
 
             if cursor.rowcount < 1:
 
                 if verify:
-                    raise relations.ModelError(model, "none retrieved")
+                    raise relations.NotFoundError(model, "none retrieved")
                 return None
 
             model._record = model._build("update", _read=self.values_retrieve(model, cursor.fetchone()))
@@ -487,7 +502,7 @@ class Source(relations_sql.SOURCE, relations.Source): # pylint: disable=too-many
             if update_query.SET.expressions:
 
                 update_query.generate()
-                cursor.execute(update_query.sql, update_query.args)
+                self.write(cursor, model, update_query.sql, update_query.args)
                 updated = cursor.rowcount
 
             ties = model._record.tie({})
@@ -517,7 +532,7 @@ class Source(relations_sql.SOURCE, relations.Source): # pylint: disable=too-many
                 if update_query.SET:
 
                     update_query.generate()
-                    cursor.execute(update_query.sql, update_query.args)
+                    self.write(cursor, updating, update_query.sql, update_query.args)
                     updated += cursor.rowcount
 
                 self.delete_ties(updating)
