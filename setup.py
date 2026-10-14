@@ -20,7 +20,7 @@ setup(
         'relations_psycopg2'
     ],
     install_requires=[
-        'psycopg2==2.8.6',
+        'psycopg2>=2.8.6',
         'relations-dil>=0.6.18',
         'relations-postgresql>=0.6.4'
     ],

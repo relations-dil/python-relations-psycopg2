@@ -21,6 +21,14 @@ Shipping as 0.6.13, with relations-dil 0.6.16.
 ### Changed
 - A key stored in a dict field (`child_inject` in relations-dil 0.6.16) is queried by its path in that field, instead of a column that doesn't exist: new `retrieve_record` hands the record to `retrieve_field`, which looks an injected field up in the field it's stored in (as the extracted column if it's been extracted), and `sort` does the same. Counting, retrieving, updating and deleting by the key work, and mass updates through it are refused.
 
+## [0.6.15] - 2026-10-14
+
+### Fixed
+- `psycopg2` is a floor, `psycopg2>=2.8.6`, not the exact `psycopg2==2.8.6`. That release doesn't compile on current Python (3.14), so `pip install relations-psycopg2` failed there. Tested against psycopg2 2.9.9 (`requirements.txt`).
+
+### Changed
+- `make setup` runs on the latest `python` image with `pip install .`, not the Python 3.8.5 Alpine image with `python setup.py install`, which ignores a package's Python requirement and so picked a psycopg2 too new for 3.8. The Alpine build packages are no longer needed.
+
 ## [0.6.14] - 2026-10-14
 
 ### Changed
