@@ -5,6 +5,9 @@ All notable changes to python-relations-psycopg2 are recorded here, newest first
 
 ## [Unreleased]
 
+### Changed
+- `make new` works on the ticket branch you're on: it writes VERSION and the changelog section there and commits, makes no branch of its own, and refuses on main, since we branch from the ticket. `B=` and `BRANCH_PREFIX` are gone (relations-dil/python-relations#98).
+
 ## [0.6.17] - 2026-10-26
 
 ### Added
