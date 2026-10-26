@@ -240,6 +240,20 @@ CREATE UNIQUE INDEX "simple_name" ON "test_source"."simple" ("name");
         self.assertEqual([column["column_name"] for column in cursor.fetchall()], ["id", "name", "what"])
         cursor.close()
 
+        # a str field's length is the column's, and 255 when it has none
+
+        class Short(SourceModel):
+            id = int
+            name = str, {"length": 64}
+            note = str
+
+        self.source.execute(Short.define())
+
+        cursor = self.source.connection.cursor()
+        cursor.execute("SELECT column_name, character_maximum_length FROM information_schema.columns WHERE table_schema='test_source' AND table_name='short' AND data_type='character varying' ORDER BY ordinal_position")
+        self.assertEqual([(column["column_name"], column["character_maximum_length"]) for column in cursor.fetchall()], [("name", 64), ("note", 255)])
+        cursor.close()
+
     def test_create_query(self):
 
         query = Simple("sure").query()
